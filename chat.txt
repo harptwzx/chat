@@ -1,2 +1,23 @@
-'ghp_5uWoIIXLQtkvBABljF7Do65X7hz2Cd1nIG8'
-wzx123_snake@qq.com
+# GitHub聊天器配置文件
+# 请勿泄露此文件内容！
+
+# 必填项：您的GitHub Token（需要有repo权限）
+token=5uWoIIXLQtkvBABljF7Do65X7hz2Cd1nIG88
+
+# 必填项：您的邮箱（用于Git提交）
+email=wzx123_snake@qq.com
+
+# 可选项：默认聊天室
+default_room=general
+
+# 可选项：自动刷新间隔（秒）
+auto_refresh=40
+
+# 可选项：最大显示消息数量
+max_messages=30
+
+# 可选项：默认用户名
+default_username=unknownuser
+
+# 可选项：主题颜色（default/dark/light）
+theme=default
