@@ -6,5 +6,5 @@ email=wzx123_snake@qq.com
 default_room=general
 auto_refresh=40
 max_messages=30
-default_username=harpt
+default_username=wzx
 theme=default
