@@ -19,10 +19,28 @@ int cursor_x = 0, cursor_y = 0;
 uint32_t cursor_color = COLOR_WHITE;
 
 /* Drag state */
-static window_t* drag_window = 0;
-static int drag_offset_x = 0;
-static int drag_offset_y = 0;
-static int drag_mode = 0;
+window_t* drag_window = 0;
+int drag_offset_x = 0;
+int drag_offset_y = 0;
+int drag_mode = 0;
+
+/* Simple heap */
+static uint8_t heap[0x100000];
+static uint32_t heap_ptr = 0;
+
+uint32_t kmalloc(uint32_t sz) {
+    uint32_t addr = (uint32_t)(heap + heap_ptr);
+    heap_ptr += sz;
+    return addr;
+}
+
+uint32_t kmalloc_a(uint32_t sz) {
+    return kmalloc(sz);
+}
+
+void kfree(void* ptr) {
+    /* Simple allocator - no free for now */
+}
 
 /* ============================================================================
  * Initialize Window Manager
@@ -61,7 +79,7 @@ window_t* create_window(const char* title, int x, int y, int w, int h, uint32_t 
     wnd->title_color = rgb(60, 120, 200);
 
     strncpy(wnd->title, title, 63);
-    wnd->title[63] = '\0';
+    wnd->title[63] = 0;
 
     /* Allocate content buffer */
     wnd->content_w = wnd->width - WINDOW_BORDER * 2;
@@ -246,7 +264,6 @@ void paint_all_windows(void) {
 void draw_window_shadow(window_t* w) {
     /* Soft shadow */
     for (int i = 0; i < 6; i++) {
-        uint8_t alpha = 30 - i * 5;
         draw_rect(w->x + w->width + i, w->y + i, 1, w->height, rgb(0, 0, 0));
         draw_rect(w->x + i, w->y + w->height + i, w->width + 6 - i, 1, rgb(0, 0, 0));
     }
@@ -387,22 +404,4 @@ void update_windows(void) {
     /* Mouse cursor update */
     cursor_x = mouse.x;
     cursor_y = mouse.y;
-}
-
-/* Simple kmalloc/kfree stubs */
-static uint8_t heap[0x100000];
-static uint32_t heap_ptr = 0;
-
-uint32_t kmalloc(uint32_t sz) {
-    uint32_t addr = (uint32_t)(heap + heap_ptr);
-    heap_ptr += sz;
-    return addr;
-}
-
-uint32_t kmalloc_a(uint32_t sz) {
-    return kmalloc(sz);
-}
-
-void kfree(void* ptr) {
-    /* Simple allocator - no free for now */
 }

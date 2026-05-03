@@ -37,8 +37,8 @@ fi
 # Function to install on Debian/Ubuntu
 install_debian() {
     echo -e "${YELLOW}Installing dependencies...${NC}"
-    apt-get update
-    apt-get install -y build-essential bison flex libgmp3-dev libmpc-dev         libmpfr-dev texinfo nasm qemu-system-x86 xorriso grub-common
+    sudo apt-get update
+    sudo apt-get install -y build-essential bison flex libgmp3-dev libmpc-dev         libmpfr-dev texinfo nasm qemu-system-x86 xorriso grub-common
 
     echo -e "${YELLOW}Building cross compiler (this may take 30-60 minutes)...${NC}"
 
@@ -52,9 +52,9 @@ install_debian() {
 
     # Download sources
     echo "Downloading binutils..."
-    wget -q https://mirrors.tuna.tsinghua.edu.cn/gnu/binutils/binutils-2.40.tar.xz
+    wget -q https://ftp.gnu.org/gnu/binutils/binutils-2.40.tar.xz
     echo "Downloading gcc..."
-    wget -q https://mirrors.tuna.tsinghua.edu.cn/gnu/gcc/gcc-13.2.0/gcc-13.2.0.tar.xz
+    wget -q https://ftp.gnu.org/gnu/gcc/gcc-13.2.0/gcc-13.2.0.tar.xz
 
     # Build binutils
     echo "Building binutils..."

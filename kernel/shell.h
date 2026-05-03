@@ -24,7 +24,7 @@ typedef struct {
     char cwd[256];
     char prompt[32];
 
-    window_t* window;
+    struct window* window;
     int cursor_x;
     int cursor_y;
 
@@ -53,7 +53,7 @@ void shell_println(const char* str);
 void shell_clear(void);
 void shell_prompt(void);
 void shell_scroll(void);
-void paint_shell_window(window_t* w);
+void paint_shell_window(struct window* w);
 
 /* Built-in commands */
 int cmd_help(int argc, char** argv);

@@ -12,22 +12,26 @@
 #define ICON_TEXT_H     14
 
 /* Desktop icon */
-typedef struct desktop_icon {
+struct desktop_icon {
     int x, y;
     char label[32];
     uint32_t color;
     void (*on_click)(struct desktop_icon* icon);
     struct desktop_icon* next;
-} desktop_icon_t;
+};
+
+typedef struct desktop_icon desktop_icon_t;
 
 /* Taskbar button */
-typedef struct taskbar_button {
+struct taskbar_button {
     int x, y, w, h;
     char label[32];
-    window_t* window;
+    struct window* window;
     uint32_t color;
     struct taskbar_button* next;
-} taskbar_button_t;
+};
+
+typedef struct taskbar_button taskbar_button_t;
 
 /* Desktop state */
 extern desktop_icon_t* desktop_icons;
@@ -43,8 +47,8 @@ void draw_taskbar(void);
 void draw_clock(void);
 void draw_desktop_icons(void);
 void add_desktop_icon(const char* label, int x, int y, uint32_t color, void (*on_click)(desktop_icon_t*));
-void add_taskbar_button(window_t* w);
-void remove_taskbar_button(window_t* w);
+void add_taskbar_button(struct window* w);
+void remove_taskbar_button(struct window* w);
 void update_taskbar(void);
 void handle_desktop_click(int x, int y, int button);
 void handle_mouse_move(int x, int y);

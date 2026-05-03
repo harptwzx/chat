@@ -24,7 +24,7 @@
 #define WF_HAS_SHADOW   0x80
 
 /* Window structure */
-typedef struct window {
+struct window {
     int id;
     int x, y;
     int width, height;
@@ -47,7 +47,9 @@ typedef struct window {
 
     struct window* next;
     struct window* prev;
-} window_t;
+};
+
+typedef struct window window_t;
 
 /* Window manager state */
 extern window_t* window_list;
@@ -59,6 +61,12 @@ extern int next_window_id;
 extern int cursor_x, cursor_y;
 extern uint32_t cursor_color;
 
+/* Drag state */
+extern window_t* drag_window;
+extern int drag_offset_x;
+extern int drag_offset_y;
+extern int drag_mode;
+
 /* Functions */
 void init_window_manager(void);
 window_t* create_window(const char* title, int x, int y, int w, int h, uint32_t flags);
@@ -67,7 +75,7 @@ void show_window(window_t* w);
 void hide_window(window_t* w);
 void activate_window(window_t* w);
 void move_window(window_t* w, int x, int y);
-void resize_window(window_t* w, int w, int h);
+void resize_window(window_t* w, int width, int height);
 void minimize_window(window_t* w);
 void maximize_window(window_t* w);
 void restore_window(window_t* w);
@@ -96,5 +104,10 @@ int window_hit_test(window_t* w, int x, int y);
 #define HT_MAXIMIZE     4
 #define HT_BORDER       5
 #define HT_NONE         6
+
+/* kmalloc/kfree */
+uint32_t kmalloc(uint32_t sz);
+uint32_t kmalloc_a(uint32_t sz);
+void kfree(void* ptr);
 
 #endif
