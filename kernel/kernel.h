@@ -62,7 +62,9 @@ static inline void outb(uint16_t port, uint8_t data) {
 }
 
 static inline void io_wait(void) {
-    asm volatile("jmp 1f\n\t1: jmp 1f\n\t1:");
+    asm volatile("jmp 1f
+	1: jmp 1f
+	1:");
 }
 
 static inline uint32_t read_cr0(void) {
@@ -206,7 +208,6 @@ static inline char* itoa(int value, char* str, int base) {
  * ============================================================================ */
 static inline int sprintf(char* buf, const char* fmt, ...) {
     /* Very simple sprintf - just copy format string for now */
-    /* In a real OS, you'd implement full variadic formatting */
     strcpy(buf, fmt);
     return strlen(buf);
 }
@@ -236,15 +237,18 @@ extern uint32_t kmalloc_a(uint32_t sz);
 extern void kfree(void* ptr);
 
 /* ============================================================================
- * External variables
+ * Forward declarations for types used in headers
  * ============================================================================ */
-extern volatile uint32_t timer_ticks;
-extern volatile uint32_t timer_seconds;
-extern volatile uint32_t timer_frequency;
-
-/* Forward declarations for types used in headers */
 struct window;
 typedef struct window window_t;
+
+struct desktop_icon;
+typedef struct desktop_icon desktop_icon_t;
+
+struct taskbar_button;
+typedef struct taskbar_button taskbar_button_t;
+
+struct mouse_state;
 
 /* ============================================================================
  * Kernel Function Declarations
@@ -347,15 +351,11 @@ void draw_desktop(void);
 void draw_taskbar(void);
 void draw_clock(void);
 void draw_desktop_icons(void);
-void add_desktop_icon(const char* label, int x, int y, uint32_t color, void (*on_click)(struct desktop_icon*));
+void add_desktop_icon(const char* label, int x, int y, uint32_t color, void (*on_click)(desktop_icon_t*));
 void add_taskbar_button(window_t* w);
 void remove_taskbar_button(window_t* w);
 void update_taskbar(void);
 void handle_desktop_click(int x, int y, int button);
-void handle_mouse_move(int x, int y);
-void handle_mouse_click(int x, int y, int button);
-void handle_mouse_release(int x, int y, int button);
-void show_start_menu(void);
 
 /* VGA */
 void init_vga(void);
@@ -394,9 +394,6 @@ void console_goto(int x, int y);
 void console_scroll(void);
 void console_update_cursor(void);
 
-/* Desktop icon type */
-struct desktop_icon;
-
 /* Window constants */
 #define WINDOW_TITLE_H  24
 #define WINDOW_BORDER   2
@@ -416,22 +413,6 @@ struct desktop_icon;
 #define MOUSE_RIGHT     0x02
 #define MOUSE_MIDDLE    0x04
 
-/* Mouse state (defined in mouse.c) */
-struct mouse_state {
-    int x;
-    int y;
-    int buttons;
-    int scroll;
-    int present;
-};
-extern struct mouse_state mouse;
-extern volatile int mouse_packet_ready;
-extern int cursor_x, cursor_y;
-extern uint32_t cursor_color;
-
-/* Taskbar */
-#define TASKBAR_HEIGHT  28
-
 /* Drag state (defined in window.c) */
 extern window_t* drag_window;
 extern int drag_offset_x;
@@ -447,8 +428,16 @@ extern int drag_mode;
 #define HT_BORDER       5
 #define HT_NONE         6
 
-/* Framebuffer */
-extern uint32_t framebuffer[];
+/* Framebuffer (defined in vga.c) */
+extern uint32_t* framebuffer;
 extern int clip_x1, clip_y1, clip_x2, clip_y2;
+
+/* Taskbar */
+#define TASKBAR_HEIGHT  28
+
+/* Timer vars (defined in timer.c) */
+extern volatile uint32_t timer_ticks;
+extern volatile uint32_t timer_seconds;
+extern volatile uint32_t timer_frequency;
 
 #endif
