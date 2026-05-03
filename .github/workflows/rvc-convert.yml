@@ -1,0 +1,19 @@
+name: Remote SSH Debug (Latest)
+
+on:
+  workflow_dispatch:        # 允许手动触发
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 可选：提前更新系统包，有时能间接影响网络环境
+      - name: Update system packages
+        run: sudo apt-get update
+
+      # 核心：使用 master 分支的 action-tmate
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@master   # 关键改动：使用 @master 而不是 @v3
