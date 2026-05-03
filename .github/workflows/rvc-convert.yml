@@ -1,0 +1,101 @@
+name: RVC Voice Conversion - Harry Potter
+
+on:
+  workflow_dispatch:
+    inputs:
+      audio_url:
+        description: 'Input audio URL (real person singing)'
+        required: true
+        default: 'https://files.freemusicarchive.org/storage-freemusicarchive-org/music/no_curator/Tours/Enthusiast/Tours_-_01_-_Enthusiast.mp3'
+      pitch:
+        description: 'Pitch adjustment (-12 to 12)'
+        required: true
+        default: '-9'
+      model_choice:
+        description: 'Character model'
+        required: true
+        default: 'dumbledore'
+        type: choice
+        options:
+          - dumbledore
+          - snape
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libsndfile1 wget unzip
+
+      - name: Install PyTorch CPU
+        run: |
+          pip install torch==2.0.1 torchvision==0.15.2 torchaudio==2.0.1 --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install other dependencies
+        run: |
+          pip install numpy==1.24.3 scipy soundfile librosa audioread pyworld fairseq faiss-cpu
+
+      - name: Download RVC base models
+        run: |
+          mkdir -p assets/hubert assets/rmvpe
+          wget -q --timeout=60 -O assets/hubert/hubert_base.pt             "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/hubert_base.pt" || true
+          wget -q --timeout=60 -O assets/rmvpe/rmvpe.pt             "https://huggingface.co/lj1995/VoiceConversionWebUI/resolve/main/rmvpe.pt" || true
+
+      - name: Download Harry Potter RVC model
+        run: |
+          if [ "${{ github.event.inputs.model_choice }}" = "dumbledore" ]; then
+            echo "Downloading Dumbledore model..."
+            wget --timeout=180 --tries=2 -O models/dumbledore/model.zip               "https://huggingface.co/Loren85/Albus-Dumbledore-HP-1-2/resolve/main/Albus%20Dumbledore%20HP%201%26%202.zip" ||               echo "MODEL_DOWNLOAD_FAILED=1" >> $GITHUB_ENV
+            if [ -f models/dumbledore/model.zip ]; then
+              unzip -q models/dumbledore/model.zip -d models/dumbledore/ || true
+            fi
+          else
+            echo "Downloading Snape model..."
+            wget --timeout=180 --tries=2 -O models/snape/model.zip               "https://huggingface.co/jackisyi/Severussnape/resolve/main/Alanrickman.zip" ||               echo "MODEL_DOWNLOAD_FAILED=1" >> $GITHUB_ENV
+            if [ -f models/snape/model.zip ]; then
+              unzip -q models/snape/model.zip -d models/snape/ || true
+            fi
+          fi
+
+          echo "Model files found:"
+          find models/ -type f -name "*.pth" -o -name "*.index" || echo "No model files found"
+
+      - name: Download input audio
+        run: |
+          wget --timeout=60 -O input_audio "${{ github.event.inputs.audio_url }}" ||             wget --timeout=60 -O input_audio.mp3 "${{ github.event.inputs.audio_url }}"
+
+          if [ -f input_audio ]; then
+            ffmpeg -hide_banner -loglevel error -i input_audio -ar 40000 -ac 1 -t 60 input.wav -y
+          elif [ -f input_audio.mp3 ]; then
+            ffmpeg -hide_banner -loglevel error -i input_audio.mp3 -ar 40000 -ac 1 -t 60 input.wav -y
+          fi
+
+          ls -lh input.wav
+
+      - name: Run RVC inference
+        run: |
+          python rvc_infer.py             --input input.wav             --output output.wav             --model ${{ github.event.inputs.model_choice }}             --pitch ${{ github.event.inputs.pitch }}             --f0_method harvest
+
+      - name: Upload result
+        uses: actions/upload-artifact@v4
+        with:
+          name: converted-audio
+          path: output.wav
+          retention-days: 7
+
+      - name: Show result
+        run: |
+          echo "Done!"
+          ls -lh output.wav
