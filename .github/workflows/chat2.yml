@@ -1,60 +1,54 @@
 name: Remote SSH Debug (Start AI)
 
 on:
-  workflow_dispatch:        # 允许手动触发
+  workflow_dispatch:
 
 jobs:
   debug:
     runs-on: ubuntu-latest
     permissions:
-      contents: write        # 允许推送代码到仓库
+      contents: write
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0      # 获取完整历史，便于推送
+          fetch-depth: 0
 
-      # 可选：提前更新系统包
       - name: Update system packages
         run: sudo apt-get update
 
-      # 创建 outputs 和 upload 目录
       - name: Create directories
         run: |
           mkdir -p outputs
           mkdir -p upload
-          echo "upload 目录用于存放要提交到仓库的文件"
 
-      # 配置 Git 用户信息
       - name: Configure Git
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      # 核心：使用 master 分支的 action-tmate
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@master
 
-      # 将 upload 目录中的文件提交到仓库
-      - name: Commit and push files to repository
+      - name: Commit files to repository
         if: always()
         run: |
-          # 检查 upload 目录是否有文件
           if [ -d "upload" ] && [ -n "$(ls -A upload 2>/dev/null)" ]; then
             echo "发现新文件，准备提交到仓库..."
             
-            # 复制 upload 目录的文件到仓库根目录（或指定位置）
-            # 方式1：直接复制到根目录
-            cp -r upload/* ./
+            for item in upload/*; do
+              if [ -f "$item" ]; then
+                cp "$item" ./
+                git add "$(basename "$item")"
+              elif [ -d "$item" ]; then
+                dirname=$(basename "$item")
+                rm -rf "./$dirname" 2>/dev/null
+                cp -r "$item" ./
+                git add "$dirname"
+              fi
+            done
             
-            # 方式2：如果想去掉 upload 目录前缀，用这个
-            # cp -r upload/. ./
-            
-            # 添加所有更改
-            git add .
-            
-            # 检查是否有更改需要提交
             if ! git diff --cached --quiet; then
               git commit -m "Add files from GitHub Actions [skip ci]"
               git push
@@ -66,7 +60,6 @@ jobs:
             echo "upload 目录为空，没有文件需要提交"
           fi
 
-      # 同时保留 artifacts 作为备用
       - name: Upload outputs directory
         if: always()
         uses: actions/upload-artifact@v4
