@@ -1,0 +1,32 @@
+name: Remote SSH Debug (Latest)
+
+on:
+  workflow_dispatch:        # 允许手动触发
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 可选：提前更新系统包，有时能间接影响网络环境
+      - name: Update system packages
+        run: sudo apt-get update
+
+      # 创建 outputs 目录，用于存放需要导出的文件
+      - name: Create outputs directory
+        run: mkdir -p outputs
+
+      # 核心：使用 master 分支的 action-tmate
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@master   # 关键改动：使用 @master 而不是 @v3
+
+      # 上传 outputs 目录中的所有文件（在 tmate 会话结束后自动执行）
+      - name: Upload outputs directory
+        if: always()          # 确保即使 tmate 会话异常退出也会尝试上传
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-outputs    # 下载时的压缩包名称
+          path: outputs/      # 你放置生成文件的目录
+          if-no-files-found: warn   # 如果没有文件则警告，不中断流程
