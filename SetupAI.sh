@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 一键部署AI工具链
+# 一键部署AI工具链 - 三AI协作版
 # 使用方法: bash setup.sh
 
 set -e
@@ -8,7 +8,7 @@ set -e
 PROJECT_DIR="ai-toolchain"
 cd "$(dirname "$0")"
 
-echo "=== AI工具链一键部署 ==="
+echo "=== AI工具链一键部署 (三AI协作版) ==="
 
 # 创建项目目录
 mkdir -p $PROJECT_DIR
@@ -23,13 +23,19 @@ fi
 # 启动Ollama
 if ! pgrep -x "ollama" > /dev/null; then
     echo "启动Ollama..."
-    ollama serve > /dev/null 2>&1 &
+    ollama serve > ollama.log 2>&1 &
     sleep 5
 fi
 
-# 下载模型
-echo "下载模型(首次需要时间)..."
+# 下载不同角色使用的模型
+echo "下载模型(首次需要时间，约10GB)..."
+echo "1/3 下载组织者模型(llama3.1:8b)..."
+ollama pull llama3.1:8b
+
+echo "2/3 下载管家模型(qwen2.5:7b)..."
 ollama pull qwen2.5:7b
+
+echo "3/3 下载代码生成者模型(deepseek-coder:6.7b)..."
 ollama pull deepseek-coder:6.7b
 
 # 创建Python虚拟环境
@@ -45,144 +51,560 @@ import subprocess
 import os
 import json
 import re
+import sys
 from pathlib import Path
 
-class ToolChain:
-    def __init__(self):
-        self.organizer = OllamaModel("qwen2.5:7b")
-        self.coder = OllamaModel("deepseek-coder:6.7b")
-        self.workspace = Path("workspace")
-        self.workspace.mkdir(exist_ok=True)
-        
-    def run(self):
-        print("\nAI工具链已启动")
-        print("输入任务(如: 创建一个Python计算器) 或 'quit'退出\n")
-        
-        while True:
-            user_input = input(">>> ").strip()
-            if user_input.lower() == 'quit':
-                break
-            if not user_input:
-                continue
-                
-            # 组织者分析任务
-            print("\n[组织者] 分析任务...")
-            plan = self.organizer.chat(f"""你是任务规划者。用户需求: {user_input}
-如果这是一个任务(创建代码、文件操作等)，输出:
-TASK:项目名
-STEP1:具体步骤
-STEP2:具体步骤
-...
-如果是普通聊天，直接回复聊天内容。
-只输出内容，不要额外说明。""")
-            
-            if "TASK:" in plan:
-                print("[管家] 开始执行...")
-                self.execute_plan(plan, user_input)
-            else:
-                print(f"\n[AI] {plan}")
-    
-    def execute_plan(self, plan, requirement):
-        # 解析步骤
-        steps = []
-        for line in plan.split('\n'):
-            if line.startswith('STEP'):
-                steps.append(line.split(':',1)[1].strip())
-        
-        # 创建项目目录
-        project_name = plan.split('\n')[0].replace('TASK:', '').strip()
-        project_dir = self.workspace / project_name
-        project_dir.mkdir(exist_ok=True)
-        
-        # 执行每个步骤
-        for i, step in enumerate(steps, 1):
-            print(f"\n步骤{i}: {step}")
-            
-            # 判断是否需要生成代码
-            if any(kw in step.lower() for kw in ['代码', '文件', '创建', '写']):
-                self.generate_code(step, project_dir)
-            else:
-                # 执行系统命令
-                self.execute_command(step, project_dir)
-        
-        print(f"\n完成! 项目位置: {project_dir}")
-    
-    def generate_code(self, requirement, project_dir):
-        # 获取代码生成者响应
-        code_response = self.coder.chat(f"""你只输出代码，不要解释。
-需求: {requirement}
-输出格式:
-FILENAME: 文件名
-CODE:
-```语言
-代码内容
-```""")
-        
-        # 提取文件名和代码
-        filename_match = re.search(r'FILENAME:\s*(.+)', code_response)
-        code_match = re.search(r'```\w*\n(.*?)```', code_response, re.DOTALL)
-        
-        if filename_match and code_match:
-            filename = filename_match.group(1).strip()
-            code = code_match.group(1).strip()
-            filepath = project_dir / filename
-            filepath.write_text(code)
-            print(f"  生成文件: {filename}")
-            
-            # 代码检查(简单语法检查)
-            if filename.endswith('.py'):
-                try:
-                    compile(code, filename, 'exec')
-                    print(f"  ✓ 语法检查通过")
-                except SyntaxError as e:
-                    print(f"  ✗ 语法错误，重新生成...")
-                    # 重试一次
-                    fix_response = self.coder.chat(f"代码有语法错误，修复它:\n{code}\n错误:{e}")
-                    fix_match = re.search(r'```\w*\n(.*?)```', fix_response, re.DOTALL)
-                    if fix_match:
-                        fixed_code = fix_match.group(1).strip()
-                        filepath.write_text(fixed_code)
-                        print(f"  ✓ 已修复")
-        else:
-            print(f"  代码生成失败")
-    
-    def execute_command(self, command, cwd):
-        try:
-            # 解析命令
-            parts = command.split()
-            if not parts:
-                return
-            
-            cmd = parts[0]
-            args = parts[1:]
-            
-            # 安全命令白名单
-            safe_cmds = ['mkdir', 'cp', 'mv', 'rm', 'ls', 'cat', 'grep', 'find', 'echo', 'wget', 'curl']
-            
-            if cmd in safe_cmds:
-                result = subprocess.run([cmd] + args, cwd=cwd, capture_output=True, text=True)
-                if result.stdout:
-                    print(f"  {result.stdout[:200]}")
-                if result.stderr:
-                    print(f"  错误: {result.stderr[:200]}")
-            else:
-                print(f"  跳过不安全的命令: {cmd}")
-        except Exception as e:
-            print(f"  命令执行失败: {e}")
+class Color:
+    """终端颜色"""
+    RED = '\033[91m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    BLUE = '\033[94m'
+    PURPLE = '\033[95m'
+    CYAN = '\033[96m'
+    WHITE = '\033[97m'
+    RESET = '\033[0m'
+    BOLD = '\033[1m'
 
-class OllamaModel:
+class ThinkingLogger:
+    """思考过程记录器"""
+    @staticmethod
+    def organizer(msg):
+        print(f"{Color.BLUE}{Color.BOLD}[组织者]{Color.RESET} {msg}")
+    
+    @staticmethod
+    def butler(msg):
+        print(f"{Color.GREEN}{Color.BOLD}[管家]{Color.RESET} {msg}")
+    
+    @staticmethod
+    def coder(msg):
+        print(f"{Color.PURPLE}{Color.BOLD}[代码生成者]{Color.RESET} {msg}")
+    
+    @staticmethod
+    def system(msg):
+        print(f"{Color.CYAN}{Color.BOLD}[系统]{Color.RESET} {msg}")
+    
+    @staticmethod
+    def result(msg):
+        print(f"{Color.YELLOW}{Color.BOLD}[结果]{Color.RESET} {msg}")
+    
+    @staticmethod
+    def error(msg):
+        print(f"{Color.RED}{Color.BOLD}[错误]{Color.RESET} {msg}")
+
+class AIModel:
+    """AI模型封装"""
+    def __init__(self, model_name, role_name):
+        self.model_name = model_name
+        self.role_name = role_name
+        self.conversation_history = []
+        
+    def chat(self, prompt, system_prompt="", show_thinking=True):
+        """与模型对话"""
+        if show_thinking:
+            ThinkingLogger.system(f"调用{self.role_name}模型({self.model_name})...")
+        
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        
+        # 添加上文(保留最近5轮)
+        messages.extend(self.conversation_history[-10:])
+        messages.append({"role": "user", "content": prompt})
+        
+        try:
+            response = ollama.chat(
+                model=self.model_name,
+                messages=messages,
+                options={"temperature": 0.7}
+            )
+            result = response['message']['content']
+            
+            # 保存对话历史
+            self.conversation_history.append({"role": "user", "content": prompt})
+            self.conversation_history.append({"role": "assistant", "content": result})
+            
+            if show_thinking:
+                print(f"{Color.CYAN}[{self.role_name}思考]{Color.RESET}")
+                print(result[:500] + ("..." if len(result) > 500 else ""))
+                print()
+            
+            return result
+        except Exception as e:
+            ThinkingLogger.error(f"模型调用失败: {e}")
+            return f"ERROR: {e}"
+    
+    def clear_context(self):
+        """清空上下文"""
+        self.conversation_history = []
+
+class Organizer:
+    """组织者 - 拆解任务、协调全局"""
     def __init__(self, model):
         self.model = model
+        self.current_task = None
+        self.current_plan = None
+    
+    def analyze_task(self, user_input):
+        """分析用户输入，决定是聊天还是任务"""
+        ThinkingLogger.organizer("正在分析用户需求...")
         
-    def chat(self, prompt):
+        prompt = f"""分析用户输入，判断是普通对话还是需要执行的任务。
+
+用户输入: {user_input}
+
+请严格按照以下格式输出:
+
+TYPE: [CHAT 或 TASK]
+REASON: [判断理由]
+
+如果是TASK，额外输出:
+TASK_NAME: [任务名称]
+DESCRIPTION: [任务描述]
+
+如果是CHAT，直接输出回复内容。"""
+        
+        response = self.model.chat(prompt, show_thinking=True)
+        
+        if "TYPE: TASK" in response:
+            # 提取任务信息
+            task_name = ""
+            description = ""
+            for line in response.split('\n'):
+                if line.startswith("TASK_NAME:"):
+                    task_name = line.replace("TASK_NAME:", "").strip()
+                elif line.startswith("DESCRIPTION:"):
+                    description = line.replace("DESCRIPTION:", "").strip()
+            
+            return {
+                "type": "task",
+                "name": task_name,
+                "description": description,
+                "raw_response": response
+            }
+        else:
+            # 普通聊天，提取回复
+            return {
+                "type": "chat",
+                "response": response
+            }
+    
+    def create_plan(self, task_name, task_description):
+        """创建任务执行计划"""
+        ThinkingLogger.organizer(f"正在为任务'{task_name}'创建执行计划...")
+        
+        prompt = f"""你需要拆解以下任务，给出详细的执行计划。
+
+任务名称: {task_name}
+任务描述: {task_description}
+
+请严格按照以下格式输出计划:
+
+PROJECT_NAME: [项目名称]
+PROJECT_PATH: workspace/projects/[项目名称]
+
+STEPS:
+STEP_1: [步骤1描述，要具体可执行]
+STEP_1_TYPE: [CODE 或 COMMAND] (CODE表示需要写代码，COMMAND表示执行系统命令)
+STEP_1_OUTPUT: [预期输出文件名或结果]
+
+STEP_2: [步骤2描述]
+STEP_2_TYPE: [CODE 或 COMMAND]
+STEP_2_OUTPUT: [预期输出]
+
+... (根据任务复杂度输出3-10个步骤)
+
+DEPENDENCIES: [步骤间的依赖关系描述]"""
+        
+        plan = self.model.chat(prompt, show_thinking=True)
+        self.current_plan = plan
+        self.current_task = task_name
+        
+        # 解析计划
+        return self.parse_plan(plan)
+    
+    def parse_plan(self, plan_text):
+        """解析计划文本"""
+        steps = []
+        current_step = {}
+        
+        lines = plan_text.split('\n')
+        project_name = ""
+        project_path = "workspace/projects/default"
+        
+        for line in lines:
+            if line.startswith("PROJECT_NAME:"):
+                project_name = line.replace("PROJECT_NAME:", "").strip()
+                project_path = f"workspace/projects/{project_name}"
+            elif line.startswith("PROJECT_PATH:"):
+                project_path = line.replace("PROJECT_PATH:", "").strip()
+            elif line.startswith("STEP_"):
+                # 提取步骤编号和描述
+                parts = line.split(':', 1)
+                if len(parts) == 2:
+                    step_info = parts[0].split('_')
+                    if len(step_info) >= 2:
+                        step_num = step_info[1]
+                        if "TYPE" not in line:
+                            current_step = {"number": step_num, "description": parts[1].strip()}
+                        elif "TYPE" in line and "STEP" in line:
+                            step_type = parts[1].strip()
+                            current_step["type"] = step_type
+                            steps.append(current_step.copy())
+        
+        return {
+            "project_name": project_name,
+            "project_path": project_path,
+            "steps": steps,
+            "raw_plan": plan_text
+        }
+    
+    def review_result(self, project_path, task_description):
+        """审查最终结果"""
+        ThinkingLogger.organizer("正在审查最终结果...")
+        
+        # 收集项目文件列表
+        files_info = []
+        path = Path(project_path)
+        if path.exists():
+            for file in path.rglob("*"):
+                if file.is_file():
+                    files_info.append(f"{file.relative_to(path.parent)}")
+        
+        files_text = "\n".join(files_info[:20])
+        
+        prompt = f"""审查以下项目是否完成了任务。
+
+任务: {task_description}
+项目路径: {project_path}
+生成的文件:
+{files_text}
+
+请判断:
+1. 项目是否完整
+2. 是否满足任务要求
+3. 如果有问题，具体是什么问题
+
+输出格式:
+STATUS: [PASS 或 FAIL]
+REASON: [通过或失败的原因]
+FEEDBACK: [给用户的反馈信息]
+IMPROVEMENTS: [如果不通过，需要的改进建议]"""
+        
+        review = self.model.chat(prompt, show_thinking=True)
+        
+        if "STATUS: PASS" in review:
+            return {"passed": True, "feedback": review}
+        else:
+            return {"passed": False, "feedback": review}
+
+class Butler:
+    """管家 - 执行计划和协调"""
+    def __init__(self, model, coder_model):
+        self.model = model
+        self.coder = coder_model
+        self.current_project_dir = None
+    
+    def execute_plan(self, plan):
+        """执行计划"""
+        ThinkingLogger.butler("开始执行计划...")
+        
+        project_path = Path(plan["project_path"])
+        project_path.mkdir(parents=True, exist_ok=True)
+        self.current_project_dir = project_path
+        
+        ThinkingLogger.butler(f"项目目录: {project_path}")
+        
+        results = []
+        for step in plan["steps"]:
+            ThinkingLogger.butler(f"执行步骤 {step['number']}: {step['description']}")
+            result = self.execute_step(step, project_path)
+            results.append(result)
+            
+            if not result["success"]:
+                ThinkingLogger.error(f"步骤{step['number']}执行失败")
+                return {"success": False, "results": results}
+        
+        ThinkingLogger.butler("所有步骤执行完成")
+        return {"success": True, "results": results}
+    
+    def execute_step(self, step, project_path):
+        """执行单个步骤"""
+        step_type = step.get("type", "COMMAND")
+        
+        if step_type == "CODE":
+            return self.generate_code(step["description"], project_path)
+        else:
+            return self.execute_command(step["description"], project_path)
+    
+    def generate_code(self, requirement, project_path, max_retries=3):
+        """生成代码，带检查和重试"""
+        ThinkingLogger.coder(f"收到代码生成请求: {requirement}")
+        
+        for attempt in range(max_retries):
+            ThinkingLogger.coder(f"生成代码 (尝试 {attempt + 1}/{max_retries})")
+            
+            prompt = f"""根据以下需求生成完整代码。只输出代码，不要输出解释。
+
+需求: {requirement}
+
+输出格式:
+FILENAME: [文件名，包含扩展名]
+LANGUAGE: [编程语言]
+CODE:
+```语言
+[完整代码]
+```"""
+            
+            response = self.coder.chat(prompt, show_thinking=True)
+            
+            # 提取文件名和代码
+            filename_match = re.search(r'FILENAME:\s*([^\n]+)', response)
+            code_match = re.search(r'```\w*\n(.*?)```', response, re.DOTALL)
+            
+            if filename_match and code_match:
+                filename = filename_match.group(1).strip()
+                code = code_match.group(1).strip()
+                filepath = project_path / filename
+                
+                ThinkingLogger.coder(f"准备保存文件: {filename}")
+                
+                # 代码质量检查
+                check_result = self.check_code(code, filename)
+                
+                if check_result["passed"]:
+                    filepath.write_text(code)
+                    ThinkingLogger.coder(f"✓ 代码已保存: {filename}")
+                    ThinkingLogger.coder(f"检查结果: {check_result['message']}")
+                    return {
+                        "success": True,
+                        "step": requirement,
+                        "file": filename,
+                        "code_length": len(code)
+                    }
+                else:
+                    ThinkingLogger.coder(f"✗ 代码检查未通过: {check_result['message']}")
+                    
+                    if attempt < max_retries - 1:
+                        # 要求模型修复
+                        fix_prompt = f"""代码有以下问题，请修复:
+问题: {check_result['message']}
+
+原代码:
+{code}
+
+请输出修复后的完整代码(使用相同的输出格式)。"""
+                        continue
+                    else:
+                        return {
+                            "success": False,
+                            "error": check_result['message']
+                        }
+            else:
+                ThinkingLogger.error("无法解析代码生成响应")
+        
+        return {"success": False, "error": "代码生成失败"}
+    
+    def check_code(self, code, filename):
+        """检查代码质量"""
+        checks = []
+        
+        # Python语法检查
+        if filename.endswith('.py'):
+            try:
+                compile(code, filename, 'exec')
+                checks.append(("Python语法", True, "语法正确"))
+            except SyntaxError as e:
+                checks.append(("Python语法", False, f"语法错误: {e}"))
+        
+        # 代码长度检查
+        if len(code.strip()) < 10:
+            checks.append(("代码完整性", False, "代码太短"))
+        else:
+            checks.append(("代码完整性", True, f"代码长度 {len(code)} 字符"))
+        
+        # 检查是否有明显的错误标记
+        todo_patterns = ['TODO', 'FIXME', 'XXX', 'HACK']
+        found_todos = [p for p in todo_patterns if p in code.upper()]
+        if found_todos:
+            checks.append(("待办标记", False, f"包含待办: {', '.join(found_todos)}"))
+        else:
+            checks.append(("待办标记", True, "无待办标记"))
+        
+        passed = all(c[1] for c in checks)
+        message = "\n".join([f"  {c[0]}: {'✓' if c[1] else '✗'} {c[2]}" for c in checks])
+        
+        return {"passed": passed, "message": message}
+    
+    def execute_command(self, command, cwd):
+        """执行系统命令"""
+        ThinkingLogger.butler(f"执行命令: {command}")
+        
+        # 解析命令
+        parts = command.split()
+        if not parts:
+            return {"success": False, "error": "空命令"}
+        
+        cmd = parts[0]
+        args = parts[1:]
+        
+        # 安全命令白名单
+        safe_commands = {
+            'mkdir': '创建目录',
+            'ls': '列出文件',
+            'cd': '切换目录',
+            'pwd': '显示路径',
+            'echo': '输出文本',
+            'cat': '查看文件',
+            'grep': '搜索文本',
+            'find': '查找文件',
+            'cp': '复制文件',
+            'mv': '移动文件',
+            'rm': '删除文件',
+            'wget': '下载文件',
+            'curl': 'HTTP请求',
+            'python3': '运行Python',
+            'pip3': '安装包',
+            'touch': '创建文件'
+        }
+        
+        if cmd not in safe_commands:
+            ThinkingLogger.butler(f"跳过不安全的命令: {cmd}")
+            return {"success": False, "error": f"不安全的命令: {cmd}"}
+        
         try:
-            response = ollama.chat(model=self.model, messages=[{'role': 'user', 'content': prompt}])
-            return response['message']['content']
+            result = subprocess.run(
+                [cmd] + args,
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode == 0:
+                output = result.stdout.strip()
+                if output:
+                    print(f"  {Color.GREEN}[输出]{Color.RESET} {output[:200]}")
+                return {
+                    "success": True,
+                    "command": command,
+                    "output": output[:500]
+                }
+            else:
+                error = result.stderr.strip()
+                print(f"  {Color.RED}[错误]{Color.RESET} {error[:200]}")
+                return {
+                    "success": False,
+                    "command": command,
+                    "error": error[:200]
+                }
+        except subprocess.TimeoutExpired:
+            return {"success": False, "error": "命令执行超时"}
         except Exception as e:
-            return f"错误: {e}"
+            return {"success": False, "error": str(e)}
+
+class AIToolChain:
+    """主程序"""
+    def __init__(self):
+        ThinkingLogger.system("初始化AI工具链...")
+        
+        # 初始化三个不同的AI模型
+        self.organizer_model = AIModel("llama3.1:8b", "组织者")
+        self.butler_model = AIModel("qwen2.5:7b", "管家")
+        self.coder_model = AIModel("deepseek-coder:6.7b", "代码生成者")
+        
+        # 初始化角色
+        self.organizer = Organizer(self.organizer_model)
+        self.butler = Butler(self.butler_model, self.coder_model)
+        
+        ThinkingLogger.system("初始化完成!")
+    
+    def run(self):
+        """运行主循环"""
+        print("\n" + "="*60)
+        print(f"{Color.BOLD}{Color.CYAN}AI工具链 - 三AI协作系统{Color.RESET}")
+        print(f"{Color.BOLD}组织者: llama3.1:8b{Color.RESET}")
+        print(f"{Color.BOLD}管家: qwen2.5:7b{Color.RESET}")
+        print(f"{Color.BOLD}代码生成者: deepseek-coder:6.7b{Color.RESET}")
+        print("="*60)
+        print("\n输入任务或问题，输入 'quit' 退出")
+        print("输入 'clear' 清空对话历史\n")
+        
+        while True:
+            try:
+                user_input = input(f"{Color.BOLD}{Color.WHITE}>>> {Color.RESET}").strip()
+                
+                if not user_input:
+                    continue
+                
+                if user_input.lower() == 'quit':
+                    ThinkingLogger.system("再见!")
+                    break
+                
+                if user_input.lower() == 'clear':
+                    self.organizer_model.clear_context()
+                    self.butler_model.clear_context()
+                    self.coder_model.clear_context()
+                    ThinkingLogger.system("对话历史已清空")
+                    continue
+                
+                # 组织者分析
+                analysis = self.organizer.analyze_task(user_input)
+                
+                if analysis["type"] == "task":
+                    ThinkingLogger.system("检测到任务请求，开始协作处理...")
+                    print(f"{Color.BOLD}{Color.YELLOW}" + "─"*50 + f"{Color.RESET}")
+                    
+                    # 创建执行计划
+                    plan = self.organizer.create_plan(
+                        analysis.get("name", "未命名任务"),
+                        analysis.get("description", user_input)
+                    )
+                    
+                    print(f"{Color.BOLD}{Color.YELLOW}" + "="*50 + f"{Color.RESET}")
+                    ThinkingLogger.system("计划详情:")
+                    print(f"  项目名称: {plan['project_name']}")
+                    print(f"  项目路径: {plan['project_path']}")
+                    print(f"  任务步骤: {len(plan['steps'])}")
+                    print(f"{Color.BOLD}{Color.YELLOW}" + "="*50 + f"{Color.RESET}")
+                    
+                    # 管家执行
+                    result = self.butler.execute_plan(plan)
+                    
+                    if result["success"]:
+                        ThinkingLogger.system("任务执行完成!")
+                        
+                        # 组织者审查
+                        review = self.organizer.review_result(plan["project_path"], user_input)
+                        
+                        if review["passed"]:
+                            ThinkingLogger.result("✓ 任务成功完成!")
+                            print(f"\n项目位置: {plan['project_path']}")
+                        else:
+                            ThinkingLogger.result("⚠ 任务完成但需要改进")
+                            print(f"\n审查反馈:\n{review['feedback'][:500]}")
+                    else:
+                        ThinkingLogger.error("任务执行失败")
+                        print(f"\n失败步骤: {result.get('results', [])}")
+                
+                else:
+                    # 普通聊天
+                    print(f"\n{Color.BLUE}[组织者回复]{Color.RESET}")
+                    print(analysis.get("response", "无响应"))
+                    print()
+                
+                print(f"{Color.BOLD}{Color.YELLOW}" + "─"*50 + f"{Color.RESET}")
+                
+            except KeyboardInterrupt:
+                print("\n")
+                ThinkingLogger.system("中断执行")
+                break
+            except Exception as e:
+                ThinkingLogger.error(f"执行错误: {e}")
+                continue
 
 if __name__ == "__main__":
-    toolchain = ToolChain()
+    toolchain = AIToolChain()
     toolchain.run()
 EOF
 
@@ -194,11 +616,25 @@ source venv/bin/activate
 python main.py
 EOF
 
+chmod +x run.sh
+
 echo ""
-echo "=== 安装完成 ==="
+echo "========================================="
+echo "部署完成!"
+echo "========================================="
+echo ""
 echo "启动命令: cd $PROJECT_DIR && ./run.sh"
 echo ""
-echo "使用示例:"
-echo ">>> 创建一个Python计算器程序"
-echo ">>> 下载 https://example.com/file.txt"
-echo ">>> 列出当前目录文件"
+echo "使用的模型:"
+echo "  - 组织者: llama3.1:8b (负责理解需求、拆解任务、审查结果)"
+echo "  - 管家: qwen2.5:7b (负责执行计划、协调调度)"
+echo "  - 代码生成者: deepseek-coder:6.7b (负责生成代码)"
+echo ""
+echo "测试示例:"
+echo "  >>> 请计算出圆周率π的前10位数字"
+echo "  >>> 创建一个Python程序计算斐波那契数列"
+echo "  >>> 下载一个网页并保存"
+echo "  >>> 你好 (普通聊天)"
+echo ""
+echo "所有AI的思考过程都会实时显示"
+echo "========================================="
