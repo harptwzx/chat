@@ -70,26 +70,61 @@ jobs:
           
           nohup ./bore local 5901 --to bore.pub > bore.log 2>&1 &
           sleep 5
-          
-          # 提取并打印 bore 信息
+
+      # ========== 7. 打印所有连接信息 ==========
+      - name: Print connection info
+        run: |
           BORE_PORT=$(grep -oP 'listening at bore.pub:\K\d+' bore.log | head -1)
           
           echo ""
-          echo "========================================"
-          echo "🖥️  VNC 连接信息"
-          echo "========================================"
-          echo "地址: bore.pub:${BORE_PORT}"
-          echo "密码: github"
-          echo "========================================"
+          echo "╔════════════════════════════════════════════════════════════╗"
+          echo "║                    🔗 连接信息汇总                          ║"
+          echo "╠════════════════════════════════════════════════════════════╣"
+          echo "║  🖥️  VNC 图形桌面                                          ║"
+          echo "║     地址: bore.pub:${BORE_PORT}                              ║"
+          echo "║     密码: github                                           ║"
+          echo "║                                                            ║"
+          echo "║  🌐 使用 AVNC 连接 bore.pub:${BORE_PORT}                     ║"
+          echo "╚════════════════════════════════════════════════════════════╝"
 
-      # ========== 7. 启动 tmate 并打印 SSH 地址 ==========
-      - name: Setup tmate session
+      # ========== 8. 启动 tmate（后台模式）==========
+      - name: Start tmate in background
         uses: mxschmitt/action-tmate@v3
         with:
-          detached: false
+          detached: true
           limit-access-to-actor: true
 
-      # ========== 8. 用户 exit 后自动关闭 ==========
+      # ========== 9. 等待 tmate 就绪并打印 SSH 地址 ==========
+      - name: Print SSH info
+        run: |
+          sleep 10
+          TMATE_SOCK=$(ls /tmp/tmate-*.sock 2>/dev/null | head -1)
+          if [ -n "$TMATE_SOCK" ]; then
+            SSH_LINE=$(tmate -S "$TMATE_SOCK" display -p '#{tmate_ssh}' 2>/dev/null)
+            WEB_LINE=$(tmate -S "$TMATE_SOCK" display -p '#{tmate_web}' 2>/dev/null)
+          fi
+          
+          echo ""
+          echo "╔════════════════════════════════════════════════════════════╗"
+          echo "║                    🔗 SSH 连接信息                          ║"
+          echo "╠════════════════════════════════════════════════════════════╣"
+          if [ -n "$SSH_LINE" ]; then
+            echo "║  🔑 SSH: ${SSH_LINE}                                         ║"
+            echo "║  🌐 Web: ${WEB_LINE}                                         ║"
+          else
+            echo "║  ⚠️  tmate 正在启动，请稍等...                               ║"
+            echo "║     稍后查看此步骤日志获取 SSH 地址                           ║"
+          fi
+          echo "╚════════════════════════════════════════════════════════════╝"
+
+      # ========== 10. 保持运行（阻塞，exit 后结束）==========
+      - name: Keep alive
+        run: |
+          echo "服务运行中，输入 exit 断开 SSH 后会自动关闭..."
+          echo "按 Ctrl+C 或等待 timeout 结束"
+          sleep 3600
+
+      # ========== 11. 用户 exit 后自动关闭 ==========
       - name: Cleanup and shutdown
         if: always()
         run: |
