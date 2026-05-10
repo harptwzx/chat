@@ -10,31 +10,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ========== 1. 安装桌面环境 + 字体 ==========
+      # ========== 1. 安装桌面环境 ==========
       - name: Install XFCE + VNC + Fonts
         run: |
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
             xfce4 xfce4-goodies \
-            tigervnc-standalone-server tigervnc-viewer \
+            tigervnc-standalone-server \
             xfonts-base xfonts-75dpi xfonts-100dpi \
             fontconfig \
             autocutsel \
-            wget curl
+            curl
 
       # ========== 2. 配置 VNC ==========
       - name: Setup VNC
         run: |
           mkdir -p ~/.vnc
-          
-          # 设置 VNC 密码
           echo "github" | vncpasswd -f > ~/.vnc/passwd
           chmod 600 ~/.vnc/passwd
-          
-          # 创建 xauth 文件（解决 xauth 报错）
           touch ~/.Xauthority
           
-          # 配置 xstartup
           cat > ~/.vnc/xstartup << 'EOF'
           #!/bin/bash
           unset SESSION_MANAGER
@@ -43,64 +38,56 @@ jobs:
           export XDG_CURRENT_DESKTOP="XFCE"
           export XDG_SESSION_DESKTOP="XFCE"
           export DESKTOP_SESSION="xfce"
-          
-          # 确保 xauth 存在
           [ -r ~/.Xauthority ] || touch ~/.Xauthority
-          
           xrdb $HOME/.Xresources 2>/dev/null
-          
-          # 启动剪切板同步
           autocutsel -fork &
-          
-          # 启动 XFCE
           exec startxfce4
           EOF
-          
           chmod +x ~/.vnc/xstartup
 
-      # ========== 3. 启动 VNC 服务器 ==========
+      # ========== 3. 启动 VNC ==========
       - name: Start VNC Server
         run: |
-          # 杀掉可能残留的
           vncserver -kill :1 2>/dev/null || true
           rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 2>/dev/null || true
-          
-          # 启动 TigerVNC（更稳定）
-          # -localhost no 允许远程连接（ngrok 会转发）
           vncserver :1 -geometry 1280x720 -depth 24 -localhost no
-          
-          sleep 3
-          echo "VNC 进程："
+          sleep 2
           ps aux | grep -i vnc
-          echo "监听端口："
           ss -tlnp | grep 5901
 
-      # ========== 4. 安装 ngrok 并暴露 VNC 端口 ==========
-      - name: Setup ngrok tunnel for VNC
-        env:
-          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
+      # ========== 4. 用 cloudflared 暴露 VNC（零配置，无需 token）==========
+      - name: Expose VNC via cloudflared
         run: |
-          curl -sLo ngrok.tgz https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
-          tar -xzf ngrok.tgz
-          chmod +x ngrok
+          # 下载 cloudflared
+          curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
           
-          ./ngrok config add-authtoken "$NGROK_AUTHTOKEN"
+          # 启动 TCP 隧道，把本地 5901 暴露出去
+          nohup ./cloudflared tunnel --no-autoupdate --url tcp://localhost:5901 > cloudflared.log 2>&1 &
+          sleep 10
           
-          # 后台启动 TCP 隧道
-          nohup ./ngrok tcp 5901 > ngrok.log 2>&1 &
-          sleep 8
-          
-          # 获取公网地址
-          TUNNEL_INFO=$(curl -s http://localhost:4040/api/tunnels)
+          # 提取地址
+          URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' cloudflared.log | head -1)
           echo "========================================"
-          echo "🖥️  VNC 连接信息："
-          echo "$TUNNEL_INFO" | grep -o '"public_url":"[^"]*"' | sed 's/"public_url":"//;s/"$//'
+          echo "🖥️  VNC 连接地址: $URL"
           echo "========================================"
-          echo "密码: github"
+          echo "⚠️  注意：这是 HTTPS 地址，VNC 是 TCP 协议"
+          echo "需要在 Termux 里用 cloudflared 做本地转发："
+          echo ""
+          echo "  cloudflared access tcp --hostname $URL --listener localhost:5901"
+          echo ""
+          echo "然后 AVNC 连接 localhost:5901"
           echo "========================================"
 
-      # ========== 5. 保持运行 ==========
+      # ========== 5. 同时启动 tmate（SSH 备用）==========
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
+        with:
+          detached: true
+          limit-access-to-actor: true
+
+      # ========== 6. 保持运行 ==========
       - name: Keep alive
         run: |
-          echo "VNC 桌面已启动，等待连接..."
+          echo "等待连接..."
           sleep 3600
