@@ -10,17 +10,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ========== 1. 安装桌面环境 ==========
-      - name: Install XFCE + VNC + Fonts
+      # ========== 1. 安装必要软件 ==========
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            xfce4 xfce4-goodies \
+            openbox obconf \
+            lxpanel pcmanfm \
+            xterm \
             tigervnc-standalone-server \
             xfonts-base xfonts-75dpi xfonts-100dpi \
             fontconfig \
             autocutsel \
-            curl
+            curl wget
 
       # ========== 2. 配置 VNC ==========
       - name: Setup VNC
@@ -29,65 +31,53 @@ jobs:
           echo "github" | vncpasswd -f > ~/.vnc/passwd
           chmod 600 ~/.vnc/passwd
           touch ~/.Xauthority
-          
-          cat > ~/.vnc/xstartup << 'EOF'
-          #!/bin/bash
-          unset SESSION_MANAGER
-          unset DBUS_SESSION_BUS_ADDRESS
-          export XKL_XMODMAP_DISABLE=1
-          export XDG_CURRENT_DESKTOP="XFCE"
-          export XDG_SESSION_DESKTOP="XFCE"
-          export DESKTOP_SESSION="xfce"
-          [ -r ~/.Xauthority ] || touch ~/.Xauthority
-          xrdb $HOME/.Xresources 2>/dev/null
-          autocutsel -fork &
-          exec startxfce4
-          EOF
-          chmod +x ~/.vnc/xstartup
 
-      # ========== 3. 启动 VNC ==========
+      # ========== 3. 启动 VNC + Openbox ==========
       - name: Start VNC Server
         run: |
           vncserver -kill :1 2>/dev/null || true
-          rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 2>/dev/null || true
-          vncserver :1 -geometry 1280x720 -depth 24 -localhost no
-          sleep 2
-          ps aux | grep -i vnc
-          ss -tlnp | grep 5901
+          rm -f /tmp/.X1-lock /tmp/.X11-unix/X1
+          vncserver :1 -geometry 1280x720 -depth 24 -localhost no -xstartup /usr/bin/openbox-session
+          sleep 3
 
-      # ========== 4. 用 cloudflared 暴露 VNC（零配置，无需 token）==========
-      - name: Expose VNC via cloudflared
+      # ========== 4. 启动桌面组件 ==========
+      - name: Start Desktop
         run: |
-          # 下载 cloudflared
-          curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
-          chmod +x cloudflared
+          DISPLAY=:1 lxpanel &
+          DISPLAY=:1 pcmanfm --desktop &
+          sleep 2
+
+      # ========== 5. 启动 bore.pub 隧道 ==========
+      - name: Expose VNC via bore.pub
+        run: |
+          # 下载 bore
+          curl -sL https://api.github.com/repos/ekzhang/bore/releases/latest | \
+            grep "browser_download_url.*x86_64-unknown-linux-musl" | \
+            cut -d '"' -f 4 | wget -i - -O bore.tar.gz
+          tar -xzf bore.tar.gz
+          chmod +x bore
           
-          # 启动 TCP 隧道，把本地 5901 暴露出去
-          nohup ./cloudflared tunnel --no-autoupdate --url tcp://localhost:5901 > cloudflared.log 2>&1 &
-          sleep 10
+          # 后台启动隧道
+          nohup ./bore local 5901 --to bore.pub > bore.log 2>&1 &
+          sleep 5
           
-          # 提取地址
-          URL=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' cloudflared.log | head -1)
-          echo "========================================"
-          echo "🖥️  VNC 连接地址: $URL"
-          echo "========================================"
-          echo "⚠️  注意：这是 HTTPS 地址，VNC 是 TCP 协议"
-          echo "需要在 Termux 里用 cloudflared 做本地转发："
+          # 输出连接信息
+          cat bore.log
           echo ""
-          echo "  cloudflared access tcp --hostname $URL --listener localhost:5901"
-          echo ""
-          echo "然后 AVNC 连接 localhost:5901"
+          echo "========================================"
+          echo "🖥️  VNC 连接信息"
+          echo "========================================"
+          grep "listening at" bore.log
+          echo "密码: github"
           echo "========================================"
 
-      # ========== 5. 同时启动 tmate（SSH 备用）==========
+      # ========== 6. 启动 tmate（SSH 备用调试）==========
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
         with:
           detached: true
           limit-access-to-actor: true
 
-      # ========== 6. 保持运行 ==========
+      # ========== 7. 保持运行 ==========
       - name: Keep alive
-        run: |
-          echo "等待连接..."
-          sleep 3600
+        run: sleep 3600
