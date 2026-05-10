@@ -69,6 +69,7 @@ jobs:
           echo "========================================"
           grep "listening at" bore.log
           echo "密码: github"
+          echo "./bore local 5901 --to bore.pub"
           echo "========================================"
 
       # ========== 6. 启动 tmate（SSH 备用调试）==========
