@@ -10,13 +10,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ========== 1. 安装桌面环境 ==========
-      - name: Install XFCE + VNC Server
+      # ========== 1. 安装桌面环境 + 字体 ==========
+      - name: Install XFCE + VNC + Fonts
         run: |
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
             xfce4 xfce4-goodies \
-            tightvncserver xterm \
+            tigervnc-standalone-server tigervnc-viewer \
+            xfonts-base xfonts-75dpi xfonts-100dpi \
+            fontconfig \
             autocutsel \
             wget curl
 
@@ -24,11 +26,15 @@ jobs:
       - name: Setup VNC
         run: |
           mkdir -p ~/.vnc
-          # 设置 VNC 密码（这里用 "github" 作为密码，你可以改）
+          
+          # 设置 VNC 密码
           echo "github" | vncpasswd -f > ~/.vnc/passwd
           chmod 600 ~/.vnc/passwd
-
-          # 配置 xstartup：启动 XFCE
+          
+          # 创建 xauth 文件（解决 xauth 报错）
+          touch ~/.Xauthority
+          
+          # 配置 xstartup
           cat > ~/.vnc/xstartup << 'EOF'
           #!/bin/bash
           unset SESSION_MANAGER
@@ -38,9 +44,16 @@ jobs:
           export XDG_SESSION_DESKTOP="XFCE"
           export DESKTOP_SESSION="xfce"
           
+          # 确保 xauth 存在
+          [ -r ~/.Xauthority ] || touch ~/.Xauthority
+          
           xrdb $HOME/.Xresources 2>/dev/null
-          startxfce4 &
+          
+          # 启动剪切板同步
           autocutsel -fork &
+          
+          # 启动 XFCE
+          exec startxfce4
           EOF
           
           chmod +x ~/.vnc/xstartup
@@ -50,32 +63,34 @@ jobs:
         run: |
           # 杀掉可能残留的
           vncserver -kill :1 2>/dev/null || true
-          # 启动，分辨率 1280x720，颜色深度 24
-          vncserver :1 -geometry 1280x720 -depth 24 -localhost yes
-          sleep 2
-          # 确认启动
-          ps aux | grep vnc
+          rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 2>/dev/null || true
+          
+          # 启动 TigerVNC（更稳定）
+          # -localhost no 允许远程连接（ngrok 会转发）
+          vncserver :1 -geometry 1280x720 -depth 24 -localhost no
+          
+          sleep 3
+          echo "VNC 进程："
+          ps aux | grep -i vnc
+          echo "监听端口："
+          ss -tlnp | grep 5901
 
       # ========== 4. 安装 ngrok 并暴露 VNC 端口 ==========
       - name: Setup ngrok tunnel for VNC
         env:
           NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
         run: |
-          # 下载 ngrok
           curl -sLo ngrok.tgz https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
           tar -xzf ngrok.tgz
           chmod +x ngrok
           
-          # 配置 token
           ./ngrok config add-authtoken "$NGROK_AUTHTOKEN"
           
-          # 启动 TCP 隧道，暴露 VNC 端口 5901
-          ./ngrok tcp 5901 &
+          # 后台启动 TCP 隧道
+          nohup ./ngrok tcp 5901 > ngrok.log 2>&1 &
+          sleep 8
           
-          # 等待隧道建立
-          sleep 5
-          
-          # 获取公网地址并打印
+          # 获取公网地址
           TUNNEL_INFO=$(curl -s http://localhost:4040/api/tunnels)
           echo "========================================"
           echo "🖥️  VNC 连接信息："
@@ -88,6 +103,4 @@ jobs:
       - name: Keep alive
         run: |
           echo "VNC 桌面已启动，等待连接..."
-          echo "Ctrl+C 或等待 timeout 结束"
-          # 保持运行直到超时
           sleep 3600
