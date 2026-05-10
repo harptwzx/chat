@@ -1,0 +1,93 @@
+name: GitHub Actions VNC Desktop
+on: workflow_dispatch
+
+jobs:
+  vnc-desktop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ========== 1. 安装桌面环境 ==========
+      - name: Install XFCE + VNC Server
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            xfce4 xfce4-goodies \
+            tightvncserver xterm \
+            autocutsel \
+            wget curl
+
+      # ========== 2. 配置 VNC ==========
+      - name: Setup VNC
+        run: |
+          mkdir -p ~/.vnc
+          # 设置 VNC 密码（这里用 "github" 作为密码，你可以改）
+          echo "github" | vncpasswd -f > ~/.vnc/passwd
+          chmod 600 ~/.vnc/passwd
+
+          # 配置 xstartup：启动 XFCE
+          cat > ~/.vnc/xstartup << 'EOF'
+          #!/bin/bash
+          unset SESSION_MANAGER
+          unset DBUS_SESSION_BUS_ADDRESS
+          export XKL_XMODMAP_DISABLE=1
+          export XDG_CURRENT_DESKTOP="XFCE"
+          export XDG_SESSION_DESKTOP="XFCE"
+          export DESKTOP_SESSION="xfce"
+          
+          xrdb $HOME/.Xresources 2>/dev/null
+          startxfce4 &
+          autocutsel -fork &
+          EOF
+          
+          chmod +x ~/.vnc/xstartup
+
+      # ========== 3. 启动 VNC 服务器 ==========
+      - name: Start VNC Server
+        run: |
+          # 杀掉可能残留的
+          vncserver -kill :1 2>/dev/null || true
+          # 启动，分辨率 1280x720，颜色深度 24
+          vncserver :1 -geometry 1280x720 -depth 24 -localhost yes
+          sleep 2
+          # 确认启动
+          ps aux | grep vnc
+
+      # ========== 4. 安装 ngrok 并暴露 VNC 端口 ==========
+      - name: Setup ngrok tunnel for VNC
+        env:
+          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
+        run: |
+          # 下载 ngrok
+          curl -sLo ngrok.tgz https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
+          tar -xzf ngrok.tgz
+          chmod +x ngrok
+          
+          # 配置 token
+          ./ngrok config add-authtoken "$NGROK_AUTHTOKEN"
+          
+          # 启动 TCP 隧道，暴露 VNC 端口 5901
+          ./ngrok tcp 5901 &
+          
+          # 等待隧道建立
+          sleep 5
+          
+          # 获取公网地址并打印
+          TUNNEL_INFO=$(curl -s http://localhost:4040/api/tunnels)
+          echo "========================================"
+          echo "🖥️  VNC 连接信息："
+          echo "$TUNNEL_INFO" | grep -o '"public_url":"[^"]*"' | sed 's/"public_url":"//;s/"$//'
+          echo "========================================"
+          echo "密码: github"
+          echo "========================================"
+
+      # ========== 5. 保持运行 ==========
+      - name: Keep alive
+        run: |
+          echo "VNC 桌面已启动，等待连接..."
+          echo "Ctrl+C 或等待 timeout 结束"
+          # 保持运行直到超时
+          sleep 3600
