@@ -10,7 +10,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ========== 1. 安装 Python 3.10（不替换系统 python3）==========
+      # ========== 1. 安装 Python 3.10 ==========
       - name: Install Python 3.10
         run: |
           sudo apt-get update
@@ -71,16 +71,18 @@ jobs:
           nohup ./bore local 5901 --to bore.pub > bore.log 2>&1 &
           sleep 5
           
-          cat bore.log
+          # 提取并打印 bore 信息
+          BORE_PORT=$(grep -oP 'listening at bore.pub:\K\d+' bore.log | head -1)
+          
           echo ""
           echo "========================================"
           echo "🖥️  VNC 连接信息"
           echo "========================================"
-          grep "listening at" bore.log
+          echo "地址: bore.pub:${BORE_PORT}"
           echo "密码: github"
           echo "========================================"
 
-      # ========== 7. 启动 tmate（阻塞模式，exit 后自动结束）==========
+      # ========== 7. 启动 tmate 并打印 SSH 地址 ==========
       - name: Setup tmate session
         uses: mxschmitt/action-tmate@v3
         with:
