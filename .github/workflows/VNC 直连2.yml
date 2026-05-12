@@ -84,66 +84,25 @@ jobs:
           echo "║  密码: github                                              ║"
           echo "╚════════════════════════════════════════════════════════════╝"
 
-      # ========== 8. 启动 tmate（后台模式）==========
+      # ========== 8. 启动 tmate（后台模式，自动打印 SSH 链接）==========
       - name: Start tmate in background
         uses: mxschmitt/action-tmate@v3
         with:
           detached: true
           limit-access-to-actor: true
 
-      # ========== 9. 等待 tmate 就绪并打印 SSH 地址 ==========
-      - name: Print SSH info
-        run: |
-          # 等待 tmate socket 出现
-          for i in {1..30}; do
-            TMATE_SOCK=$(ls /tmp/tmate-*.sock 2>/dev/null | head -1)
-            [ -n "$TMATE_SOCK" ] && break
-            sleep 1
-          done
-          
-          # 等待 tmate 就绪并获取 SSH 地址
-          for i in {1..30}; do
-            SSH_LINE=$(/usr/bin/tmate -S "$TMATE_SOCK" display -p '#{tmate_ssh}' 2>/dev/null)
-            [ -n "$SSH_LINE" ] && [ "$SSH_LINE" != "" ] && break
-            sleep 1
-          done
-          
-          WEB_LINE=$(/usr/bin/tmate -S "$TMATE_SOCK" display -p '#{tmate_web}' 2>/dev/null || echo "")
-          
-          echo ""
-          echo "╔════════════════════════════════════════════════════════════╗"
-          echo "║                    🔗 SSH 连接信息                          ║"
-          echo "╠════════════════════════════════════════════════════════════╣"
-          if [ -n "$SSH_LINE" ] && [ "$SSH_LINE" != "" ]; then
-            echo "║  🔑 SSH: ${SSH_LINE}                                         ║"
-            [ -n "$WEB_LINE" ] && [ "$WEB_LINE" != "" ] && echo "║  🌐 Web: ${WEB_LINE}                                         ║"
-          else
-            echo "║  ⚠️  tmate 地址获取中，请查看 Keep alive 步骤日志             ║"
-          fi
-          echo "╚════════════════════════════════════════════════════════════╝"
-
-      # ========== 10. 保持运行 + 持续打印连接信息 ==========
+      # ========== 9. 保持运行 + 持续打印连接信息 ==========
       - name: Keep alive
         run: |
           echo "服务运行中..."
+          echo "SSH 链接在上面步骤已打印"
           echo "输入 exit 断开 SSH 后会自动关闭..."
           echo ""
           
           # 持续打印连接信息（每 10 秒刷新）
           for i in $(seq 1 360); do
-            # 获取 VNC 信息
             BORE_PORT=$(grep -oP 'listening at bore.pub:\K\d+' bore.log 2>/dev/null | head -1)
             
-            # 获取 tmate 信息
-            TMATE_SOCK=$(ls /tmp/tmate-*.sock 2>/dev/null | head -1)
-            SSH_LINE=""
-            WEB_LINE=""
-            if [ -n "$TMATE_SOCK" ]; then
-              SSH_LINE=$(/usr/bin/tmate -S "$TMATE_SOCK" display -p '#{tmate_ssh}' 2>/dev/null)
-              WEB_LINE=$(/usr/bin/tmate -S "$TMATE_SOCK" display -p '#{tmate_web}' 2>/dev/null)
-            fi
-            
-            # 清屏并打印（GitHub Actions 不支持清屏，用分隔线）
             echo ""
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             echo "⏱️  运行时间: ${i}0 秒"
@@ -156,19 +115,13 @@ jobs:
               echo "   启动中..."
             fi
             echo ""
-            echo "🔑 SSH 终端"
-            if [ -n "$SSH_LINE" ] && [ "$SSH_LINE" != "" ]; then
-              echo "   SSH: ${SSH_LINE}"
-              [ -n "$WEB_LINE" ] && echo "   Web: ${WEB_LINE}"
-            else
-              echo "   启动中..."
-            fi
+            echo "🔑 SSH 终端: 查看 Start tmate in background 步骤日志"
             echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             
             sleep 10
           done
 
-      # ========== 11. 用户 exit 后自动关闭 ==========
+      # ========== 10. 用户 exit 后自动关闭 ==========
       - name: Cleanup and shutdown
         if: always()
         run: |
