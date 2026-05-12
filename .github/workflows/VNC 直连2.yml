@@ -1,4 +1,4 @@
-name: GitHub Actions VNC Desktop 2
+name: GitHub Actions VNC Desktop
 on: workflow_dispatch
 
 jobs:
@@ -18,11 +18,8 @@ jobs:
           sudo add-apt-repository -y ppa:deadsnakes/ppa
           sudo apt-get update
           sudo apt-get install -y python3.10 python3.10-venv python3.10-distutils
-          
-          # 用 ensurepip 安装基础 pip，然后降级到 21.3.1
           python3.10 -m ensurepip --upgrade
           python3.10 -m pip install --upgrade "pip==21.3.1" setuptools wheel
-          
           python3.10 --version
           python3.10 -m pip --version
 
@@ -121,16 +118,55 @@ jobs:
             echo "║  🔑 SSH: ${SSH_LINE}                                         ║"
             [ -n "$WEB_LINE" ] && [ "$WEB_LINE" != "" ] && echo "║  🌐 Web: ${WEB_LINE}                                         ║"
           else
-            echo "║  ⚠️  无法获取 tmate 地址，请检查日志                         ║"
+            echo "║  ⚠️  tmate 地址获取中，请查看 Keep alive 步骤日志             ║"
           fi
           echo "╚════════════════════════════════════════════════════════════╝"
 
-      # ========== 10. 保持运行（阻塞，exit 后结束）==========
+      # ========== 10. 保持运行 + 持续打印连接信息 ==========
       - name: Keep alive
         run: |
-          echo "服务运行中，输入 exit 断开 SSH 后会自动关闭..."
-          echo "按 Ctrl+C 或等待 timeout 结束"
-          sleep 3600
+          echo "服务运行中..."
+          echo "输入 exit 断开 SSH 后会自动关闭..."
+          echo ""
+          
+          # 持续打印连接信息（每 10 秒刷新）
+          for i in $(seq 1 360); do
+            # 获取 VNC 信息
+            BORE_PORT=$(grep -oP 'listening at bore.pub:\K\d+' bore.log 2>/dev/null | head -1)
+            
+            # 获取 tmate 信息
+            TMATE_SOCK=$(ls /tmp/tmate-*.sock 2>/dev/null | head -1)
+            SSH_LINE=""
+            WEB_LINE=""
+            if [ -n "$TMATE_SOCK" ]; then
+              SSH_LINE=$(/usr/bin/tmate -S "$TMATE_SOCK" display -p '#{tmate_ssh}' 2>/dev/null)
+              WEB_LINE=$(/usr/bin/tmate -S "$TMATE_SOCK" display -p '#{tmate_web}' 2>/dev/null)
+            fi
+            
+            # 清屏并打印（GitHub Actions 不支持清屏，用分隔线）
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo "⏱️  运行时间: ${i}0 秒"
+            echo ""
+            echo "🖥️  VNC 桌面"
+            if [ -n "$BORE_PORT" ]; then
+              echo "   地址: bore.pub:${BORE_PORT}"
+              echo "   密码: github"
+            else
+              echo "   启动中..."
+            fi
+            echo ""
+            echo "🔑 SSH 终端"
+            if [ -n "$SSH_LINE" ] && [ "$SSH_LINE" != "" ]; then
+              echo "   SSH: ${SSH_LINE}"
+              [ -n "$WEB_LINE" ] && echo "   Web: ${WEB_LINE}"
+            else
+              echo "   启动中..."
+            fi
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            
+            sleep 10
+          done
 
       # ========== 11. 用户 exit 后自动关闭 ==========
       - name: Cleanup and shutdown
