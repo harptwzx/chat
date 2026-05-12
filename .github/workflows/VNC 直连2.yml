@@ -3,29 +3,25 @@ on: workflow_dispatch
 
 jobs:
   vnc-desktop:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 60
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ========== 1. 安装 Python 3.10 + 低版本 pip ==========
-      - name: Install Python 3.10
+      # ========== 1. 安装 Python 3.10（22.04 默认自带）==========
+      - name: Setup Python 3.10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y software-properties-common
-          sudo add-apt-repository -y ppa:deadsnakes/ppa
-          sudo apt-get update
-          sudo apt-get install -y python3.10 python3.10-venv python3.10-distutils
-          python3.10 -m ensurepip --upgrade
-          python3.10 -m pip install --upgrade "pip==21.3.1" setuptools wheel
-          python3.10 --version
-          python3.10 -m pip --version
+          # 22.04 默认 python3.10，直接降级 pip
+          python3 --version
+          python3 -m pip install --upgrade "pip==21.3.1"
+          python3 -m pip --version
 
       # ========== 2. 安装桌面环境 ==========
       - name: Install dependencies
         run: |
+          sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
             openbox obconf \
             lxpanel pcmanfm \
@@ -99,7 +95,6 @@ jobs:
           echo "输入 exit 断开 SSH 后会自动关闭..."
           echo ""
           
-          # 持续打印连接信息（每 10 秒刷新）
           for i in $(seq 1 360); do
             BORE_PORT=$(grep -oP 'listening at bore.pub:\K\d+' bore.log 2>/dev/null | head -1)
             
