@@ -3,27 +3,38 @@ on: workflow_dispatch
 
 jobs:
   vnc-desktop:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
     timeout-minutes: 60
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # ========== 1. 安装 Python 3.10 ==========
-      - name: Install Python 3.10
+      - name: Setup Python 3.10
+        run: |
+          python3 --version
+          python3 -m pip install --upgrade "pip==21.3.1"
+          python3 -m pip --version
+
+      # ========== 2. 更新系统并创建目录 ==========
+      - name: Update system and create directories
         run: |
           sudo apt-get update
-          sudo apt-get install -y software-properties-common
-          sudo add-apt-repository -y ppa:deadsnakes/ppa
-          sudo apt-get update
-          sudo apt-get install -y python3.10 python3.10-venv python3-pip
-          python3.10 -m ensurepip --upgrade || true
-          python3.10 -m pip install --upgrade pip
-          python3.10 --version
-          python3.10 -m pip --version
+          mkdir -p outputs
+          mkdir -p upload
 
-      # ========== 2. 安装桌面环境 ==========
+      # ========== 3. 配置 Git ==========
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      # ========== 4. 安装桌面环境 ==========
       - name: Install dependencies
         run: |
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
@@ -36,7 +47,7 @@ jobs:
             autocutsel \
             curl wget
 
-      # ========== 3. 配置 VNC ==========
+      # ========== 5. 配置 VNC ==========
       - name: Setup VNC
         run: |
           mkdir -p ~/.vnc
@@ -44,7 +55,7 @@ jobs:
           chmod 600 ~/.vnc/passwd
           touch ~/.Xauthority
 
-      # ========== 4. 启动 VNC + Openbox ==========
+      # ========== 6. 启动 VNC + Openbox ==========
       - name: Start VNC Server
         run: |
           vncserver -kill :1 2>/dev/null || true
@@ -52,14 +63,14 @@ jobs:
           vncserver :1 -geometry 1280x720 -depth 24 -localhost no -xstartup /usr/bin/openbox-session
           sleep 3
 
-      # ========== 5. 启动桌面组件 ==========
+      # ========== 7. 启动桌面组件 ==========
       - name: Start Desktop
         run: |
           DISPLAY=:1 lxpanel &
           DISPLAY=:1 pcmanfm --desktop &
           sleep 2
 
-      # ========== 6. 启动 bore.pub 隧道 ==========
+      # ========== 8. 启动 bore.pub 隧道 ==========
       - name: Expose VNC via bore.pub
         run: |
           curl -sL https://api.github.com/repos/ekzhang/bore/releases/latest | \
@@ -71,63 +82,66 @@ jobs:
           nohup ./bore local 5901 --to bore.pub > bore.log 2>&1 &
           sleep 5
 
-      # ========== 7. 打印所有连接信息 ==========
-      - name: Print connection info
+      # ========== 9. 打印 VNC 连接信息 ==========
+      - name: Print VNC info
         run: |
           BORE_PORT=$(grep -oP 'listening at bore.pub:\K\d+' bore.log | head -1)
           
           echo ""
           echo "╔════════════════════════════════════════════════════════════╗"
-          echo "║                    🔗 连接信息汇总                          ║"
+          echo "║                    🖥️  VNC 连接信息                         ║"
           echo "╠════════════════════════════════════════════════════════════╣"
-          echo "║  🖥️  VNC 图形桌面                                          ║"
-          echo "║     地址: bore.pub:${BORE_PORT}                              ║"
-          echo "║     密码: github                                           ║"
-          echo "║                                                            ║"
-          echo "║  🌐 使用 AVNC 连接 bore.pub:${BORE_PORT}                     ║"
+          echo "║  地址: bore.pub:${BORE_PORT}                                 ║"
+          echo "║  密码: github                                              ║"
           echo "╚════════════════════════════════════════════════════════════╝"
 
-      # ========== 8. 启动 tmate（后台模式）==========
-      - name: Start tmate in background
-        uses: mxschmitt/action-tmate@v3
-        with:
-          detached: true
-          limit-access-to-actor: true
+      # ========== 10. 启动 tmate（阻塞模式，exit 后自动结束）==========
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@master
 
-      # ========== 9. 等待 tmate 就绪并打印 SSH 地址 ==========
-      - name: Print SSH info
-        run: |
-          sleep 10
-          TMATE_SOCK=$(ls /tmp/tmate-*.sock 2>/dev/null | head -1)
-          if [ -n "$TMATE_SOCK" ]; then
-            SSH_LINE=$(tmate -S "$TMATE_SOCK" display -p '#{tmate_ssh}' 2>/dev/null)
-            WEB_LINE=$(tmate -S "$TMATE_SOCK" display -p '#{tmate_web}' 2>/dev/null)
-          fi
-          
-          echo ""
-          echo "╔════════════════════════════════════════════════════════════╗"
-          echo "║                    🔗 SSH 连接信息                          ║"
-          echo "╠════════════════════════════════════════════════════════════╣"
-          if [ -n "$SSH_LINE" ]; then
-            echo "║  🔑 SSH: ${SSH_LINE}                                         ║"
-            echo "║  🌐 Web: ${WEB_LINE}                                         ║"
-          else
-            echo "║  ⚠️  tmate 正在启动，请稍等...                               ║"
-            echo "║     稍后查看此步骤日志获取 SSH 地址                           ║"
-          fi
-          echo "╚════════════════════════════════════════════════════════════╝"
-
-      # ========== 10. 保持运行（阻塞，exit 后结束）==========
-      - name: Keep alive
-        run: |
-          echo "服务运行中，输入 exit 断开 SSH 后会自动关闭..."
-          echo "按 Ctrl+C 或等待 timeout 结束"
-          sleep 3600
-
-      # ========== 11. 用户 exit 后自动关闭 ==========
-      - name: Cleanup and shutdown
+      # ========== 11. 用户 exit 后：提交 upload 文件到仓库 ==========
+      - name: Commit files to repository
         if: always()
         run: |
-          echo "SSH 会话已结束，正在清理..."
+          if [ -d "upload" ] && [ -n "$(ls -A upload 2>/dev/null)" ]; then
+            echo "发现新文件，准备提交到仓库..."
+            
+            for item in upload/*; do
+              if [ -f "$item" ]; then
+                cp "$item" ./
+                git add "$(basename "$item")"
+              elif [ -d "$item" ]; then
+                dirname=$(basename "$item")
+                rm -rf "./$dirname" 2>/dev/null
+                cp -r "$item" ./
+                git add "$dirname"
+              fi
+            done
+            
+            if ! git diff --cached --quiet; then
+              git commit -m "Add files from GitHub Actions [skip ci]"
+              git push
+              echo "✅ 文件已提交到仓库"
+            else
+              echo "没有新文件需要提交"
+            fi
+          else
+            echo "upload 目录为空，没有文件需要提交"
+          fi
+
+      # ========== 12. 上传 outputs 目录 ==========
+      - name: Upload outputs directory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-outputs
+          path: outputs/
+          if-no-files-found: warn
+
+      # ========== 13. 清理 ==========
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "正在清理..."
           vncserver -kill :1 2>/dev/null || true
           killall bore 2>/dev/null || true
