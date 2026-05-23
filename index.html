@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>GitHub Pages Proxy</title>
+<script>
+    // 获取 URL 参数中目标网址，例如 ?url=https://www.google.com
+    const params = new URLSearchParams(window.location.search);
+    const targetUrl = params.get('url');
+    
+    if (targetUrl) {
+        // 通过 CORS 代理去请求目标网站（这里用一个公共的 CORS 代理）
+        fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(targetUrl))
+            .then(response => response.text())
+            .then(html => {
+                document.open();
+                document.write(html);
+                document.close();
+            })
+            .catch(err => {
+                document.body.innerHTML = '<h1>错误</h1><p>' + err.message + '</p>';
+            });
+    } else {
+        document.body.innerHTML = '<h1>GitHub Pages Proxy Ready</h1><p>请使用 ?url=目标网址 参数访问。</p>';
+    }
+</script>
+</head>
+<body></body>
+</html>
