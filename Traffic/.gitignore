@@ -1,16 +1,11 @@
-# Ignore build files
 /build/
 /app/build/
 /.idea/
-/local.properties
-.DS_Store
+local.properties
 *.iml
 .gradle/
 /captures/
 .externalNativeBuild/
-
-# Ignore APKs
 *.apk
-
-# Ignore credentials
 *.jks
+.DS_Store
