@@ -1,4 +1,4 @@
-name: Build Traffic APK (Safe, auto wrapper)
+name: Build Traffic APK
 
 on:
   workflow_dispatch:
@@ -25,7 +25,7 @@ jobs:
         uses: gradle/gradle-build-action@v3
         with:
           build-root-directory: Traffic
-          gradle-version: 8.0  # 指定版本，不使用本地 wrapper
+          gradle-version: 8.0  # 使用 "8.0" 而不是 "8"
           arguments: assembleDebug
 
       - name: Upload APK Artifact
