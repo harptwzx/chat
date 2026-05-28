@@ -24,11 +24,12 @@ jobs:
       - name: Build with Gradle
         uses: gradle/gradle-build-action@v3
         with:
-          build-root-directory: Traffic  # 指定项目目录
+          build-root-directory: Traffic
+          gradle-version: 8.0  # 指定版本，不使用本地 wrapper
           arguments: assembleDebug
 
       - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4  # 升级到 v4
+        uses: actions/upload-artifact@v4
         with:
           name: traffic-app-debug
           path: Traffic/app/build/outputs/apk/debug/*.apk
