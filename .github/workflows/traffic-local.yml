@@ -2,10 +2,6 @@ name: Build Traffic APK
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'Traffic/**'
-      - '.github/workflows/traffic-local.yml'
 
 jobs:
   build:
@@ -15,40 +11,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Display build files for debug
-        run: |
-          echo "=== Root build.gradle ==="
-          cat Traffic/build.gradle
-          echo ""
-          echo "=== settings.gradle ==="
-          cat Traffic/settings.gradle
-          echo ""
-          if [ -f "Traffic/app/build.gradle" ]; then
-            echo "=== app/build.gradle ==="
-            cat Traffic/app/build.gradle
-          else
-            echo "⚠️ app/build.gradle not found"
-          fi
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Gradle Wrapper
+      # 用这个 action 安装 Gradle 8.10.2 到指定路径
+      - name: Install Gradle 8.10.2
+        uses: gradle/gradle-build-action@v3
+        with:
+          gradle-version: 8.10.2
+          # 只安装不构建
+          arguments: --version
+        id: gradle-install
+
+      # 用刚安装的 Gradle 8.10.2 来生成 wrapper
+      - name: Generate Gradle Wrapper
         run: |
           cd Traffic
           if [ ! -f "gradlew" ]; then
-            echo "Generating Gradle wrapper..."
-            gradle wrapper --gradle-version 8.10.2
+            # 使用 action 安装的 gradle 命令
+            ~/.gradle/wrapper/dists/gradle-8.10.2-*/gradle-8.10.2/bin/gradle wrapper --gradle-version 8.10.2
             chmod +x gradlew
           fi
 
       - name: Build with Gradle
         run: |
           cd Traffic
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
