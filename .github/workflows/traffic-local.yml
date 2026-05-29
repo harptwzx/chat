@@ -1,35 +1,27 @@
-name: Show Traffic Directory Tree
+name: Check Build Files
 
 on:
   workflow_dispatch:
 
 jobs:
-  show-tree:
+  check-build:
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install tree command
-        run: sudo apt-get update && sudo apt-get install -y tree
-
-      - name: Show Traffic directory tree
+      - name: Display build.gradle
         run: |
-          echo "=== Traffic Directory Structure ==="
+          echo "=== Root build.gradle ==="
+          cat Traffic/build.gradle
           echo ""
-          tree -L 3 Traffic/ -a --dirsfirst
+          echo "=== Settings.gradle ==="
+          cat Traffic/settings.gradle
           echo ""
-          echo "=== Alternative: Detailed ls ==="
-          ls -laR Traffic/ | head -100
+          echo "=== App build.gradle ==="
+          cat Traffic/app/build.gradle 2>/dev/null || echo "app/build.gradle not found"
 
-      - name: Check for Android files
+      - name: Check Android plugin version
         run: |
-          echo "=== Looking for AndroidManifest.xml ==="
-          find Traffic/ -name "AndroidManifest.xml" -type f
-          echo ""
-          echo "=== Looking for build.gradle files ==="
-          find Traffic/ -name "build.gradle" -o -name "build.gradle.kts" -o -name "settings.gradle" -o -name "settings.gradle.kts"
-          echo ""
-          echo "=== Looking for gradle wrapper ==="
-          find Traffic/ -name "gradlew" -o -name "gradle-wrapper.jar"
+          grep -r "com.android" Traffic/*.gradle Traffic/**/*.gradle 2>/dev/null || echo "No Android plugin found"
