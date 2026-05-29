@@ -1,27 +1,57 @@
-name: Check Build Files
+name: Build Traffic APK
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'Traffic/**'
+      - '.github/workflows/traffic-local.yml'
 
 jobs:
-  check-build:
+  build:
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Display build.gradle
+      - name: Display build files for debug
         run: |
           echo "=== Root build.gradle ==="
           cat Traffic/build.gradle
           echo ""
-          echo "=== Settings.gradle ==="
+          echo "=== settings.gradle ==="
           cat Traffic/settings.gradle
           echo ""
-          echo "=== App build.gradle ==="
-          cat Traffic/app/build.gradle 2>/dev/null || echo "app/build.gradle not found"
+          if [ -f "Traffic/app/build.gradle" ]; then
+            echo "=== app/build.gradle ==="
+            cat Traffic/app/build.gradle
+          else
+            echo "⚠️ app/build.gradle not found"
+          fi
 
-      - name: Check Android plugin version
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle Wrapper
         run: |
-          grep -r "com.android" Traffic/*.gradle Traffic/**/*.gradle 2>/dev/null || echo "No Android plugin found"
+          cd Traffic
+          if [ ! -f "gradlew" ]; then
+            echo "Generating Gradle wrapper..."
+            gradle wrapper --gradle-version 8.10.2
+            chmod +x gradlew
+          fi
+
+      - name: Build with Gradle
+        run: |
+          cd Traffic
+          ./gradlew assembleDebug --stacktrace
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: traffic-app-debug
+          path: Traffic/app/build/outputs/apk/debug/*.apk
