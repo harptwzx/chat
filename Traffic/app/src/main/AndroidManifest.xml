@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.traffic.wifidirect">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- 权限声明 -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -13,16 +12,11 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-    
-    <!-- Android 11+ 需要声明包可见性 -->
-    <queries>
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <data android:mimeType="*/*" />
-        </intent>
-    </queries>
+
+    <!-- WiFi Direct 功能声明 -->
+    <uses-feature
+        android:name="android.hardware.wifi.direct"
+        android:required="true" />
 
     <application
         android:allowBackup="true"
@@ -32,9 +26,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.Light.DarkActionBar"
         android:requestLegacyExternalStorage="true">
-        
-        <!-- 主界面 -->
-        <activity 
+
+        <!-- 主 Activity -->
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
@@ -42,33 +36,29 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        
-        <!-- 发送文件界面 -->
-        <activity 
+
+        <!-- WiFi Direct 相关 Activity -->
+        <activity
             android:name=".ui.SendActivity"
             android:exported="false" />
         
-        <!-- 接收文件界面 -->
-        <activity 
+        <activity
             android:name=".ui.ReceiveActivity"
             android:exported="false" />
         
-        <!-- 预览界面 -->
-        <activity 
+        <activity
             android:name=".ui.PreviewActivity"
             android:exported="false" />
         
-        <!-- 二维码生成界面 -->
-        <activity 
+        <activity
             android:name=".ui.QRCodeActivity"
             android:exported="false" />
         
-        <!-- 二维码扫描界面 -->
-        <activity 
+        <activity
             android:name=".ui.QRScanActivity"
             android:exported="false" />
-        
-        <!-- 文件提供者（用于 FileProvider，Android 7.0+ 分享文件需要） -->
+
+        <!-- FileProvider 用于文件共享 -->
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -78,7 +68,7 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
-        
+
     </application>
 
 </manifest>
