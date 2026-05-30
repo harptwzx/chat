@@ -31,8 +31,6 @@ jobs:
         run: |
           cd Traffic
           if [ ! -f "gradlew" ]; then
-            # 使用 action 安装的 gradle 命令
-            ~/.gradle/wrapper/dists/gradle-8.10.2-*/gradle-8.10.2/bin/gradle wrapper --gradle-version 8.10.2
             gradle wrapper
           fi
 
