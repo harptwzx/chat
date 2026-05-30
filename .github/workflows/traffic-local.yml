@@ -31,13 +31,14 @@ jobs:
         run: |
           cd Traffic
           if [ ! -f "gradlew" ]; then
+            gradle clean
             gradle wrapper
           fi
 
       - name: Build with Gradle
         run: |
           cd Traffic
-          gradle assembleDebug
+          gradle assembleDebug --info
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
