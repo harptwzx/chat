@@ -2,6 +2,10 @@ name: Build Traffic APK
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - 'Traffic/**'
+      - '.github/workflows/traffic-local.yml'
 
 jobs:
   build:
@@ -17,55 +21,13 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # 修复 AndroidManifest.xml
-      - name: Fix AndroidManifest
-        run: |
-          cd Traffic
-          if ! grep -q 'package="com.traffic.wifidirect"' app/src/main/AndroidManifest.xml; then
-            sed -i 's/<manifest /<manifest package="com.traffic.wifidirect" /' app/src/main/AndroidManifest.xml
-          fi
-          sed -i '/<activity android:name="\.MainActivity">/a\            android:exported="true"' app/src/main/AndroidManifest.xml
-          echo "✅ AndroidManifest fixed"
-
-      # 正确添加 R import（在 package 之后）
-      - name: Add R imports correctly
-        run: |
-          cd Traffic/app/src/main/java/com/traffic/wifidirect/ui
-          for file in ReceiveActivity.java PreviewActivity.java SendActivity.java; do
-            if [ -f "$file" ] && ! grep -q "import com.traffic.wifidirect.R" "$file"; then
-              # 在 package 声明后面添加 import
-              sed -i '/^package /a import com.traffic.wifidirect.R;' "$file"
-              echo "Added import to $file"
-            fi
-          done
-          
-          # 验证修复后的文件
-          echo "=== Fixed ReceiveActivity.java ==="
-          head -5 ReceiveActivity.java
-
-      # 安装 Gradle
-      - name: Install Gradle 8.10.2
+      - name: Build with Gradle
         uses: gradle/gradle-build-action@v3
         with:
+          build-root-directory: Traffic
           gradle-version: 8.10.2
-          arguments: --version
+          arguments: assembleDebug
 
-      # 生成 Wrapper
-      - name: Generate Gradle Wrapper
-        run: |
-          cd Traffic
-          if [ ! -f "gradlew" ]; then
-            gradle wrapper
-            chmod +x gradlew
-          fi
-
-      # 构建
-      - name: Build with Gradle
-        run: |
-          cd Traffic
-          ./gradlew assembleDebug --info
-
-      # 上传 APK
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
