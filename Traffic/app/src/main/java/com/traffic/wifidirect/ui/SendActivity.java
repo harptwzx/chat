@@ -1,15 +1,36 @@
 package com.traffic.wifidirect.ui;
 
-import android.app.Activity;
 import android.os.Bundle;
-import android.widget.Toast;
+import android.widget.Button;
+import android.widget.TextView;
+import androidx.appcompat.app.AppCompatActivity;
+import com.traffic.wifidirect.R;
+import com.traffic.wifidirect.WiFiDirectManager;
 
-public class SendActivity extends Activity {
+public class SendActivity extends AppCompatActivity {
+    private WiFiDirectManager wifiManager;
+    private TextView statusText;
+    private Button scanButton;
+    private Button sendButton;
+    
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_send);
-        Toast.makeText(this, "发送文件功能开发中", Toast.LENGTH_SHORT).show();
-        // TODO: 文件选择+WiFi Direct+二维码生成
+        
+        wifiManager = new WiFiDirectManager(this);
+        statusText = findViewById(R.id.status);
+        scanButton = findViewById(R.id.btn_scan);
+        sendButton = findViewById(R.id.btn_send);
+        
+        scanButton.setOnClickListener(v -> {
+            wifiManager.discoverPeers();
+            statusText.setText("正在扫描设备...");
+        });
+        
+        sendButton.setOnClickListener(v -> {
+            // TODO: 选择文件并发送
+            statusText.setText("准备发送文件...");
+        });
     }
 }
