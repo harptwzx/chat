@@ -6,7 +6,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,29 +17,53 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # 用这个 action 安装 Gradle 8.10.2 到指定路径
+      # 修复 AndroidManifest.xml
+      - name: Fix AndroidManifest
+        run: |
+          cd Traffic
+          # 添加 package 属性（如果缺失）
+          if ! grep -q 'package="com.traffic.wifidirect"' app/src/main/AndroidManifest.xml; then
+            sed -i 's/<manifest /<manifest package="com.traffic.wifidirect" /' app/src/main/AndroidManifest.xml
+          fi
+          # 为 MainActivity 添加 exported
+          sed -i '/<activity android:name="\.MainActivity">/a\            android:exported="true"' app/src/main/AndroidManifest.xml
+          echo "✅ AndroidManifest fixed"
+
+      # 添加缺失的 R import
+      - name: Add R imports
+        run: |
+          cd Traffic/app/src/main/java/com/traffic/wifidirect/ui
+          for file in ReceiveActivity.java PreviewActivity.java SendActivity.java; do
+            if [ -f "$file" ] && ! grep -q "import com.traffic.wifidirect.R" "$file"; then
+              sed -i '1i import com.traffic.wifidirect.R;' "$file"
+              echo "Added import to $file"
+            fi
+          done
+
+      # 安装 Gradle 8.10.2
       - name: Install Gradle 8.10.2
         uses: gradle/gradle-build-action@v3
         with:
           gradle-version: 8.10.2
-          # 只安装不构建
           arguments: --version
         id: gradle-install
 
-      # 用刚安装的 Gradle 8.10.2 来生成 wrapper
+      # 生成 Wrapper
       - name: Generate Gradle Wrapper
         run: |
           cd Traffic
           if [ ! -f "gradlew" ]; then
-            gradle clean
             gradle wrapper
+            chmod +x gradlew
           fi
 
+      # 构建 APK
       - name: Build with Gradle
         run: |
           cd Traffic
-          gradle assembleDebug --info
+          ./gradlew assembleDebug --info
 
+      # 上传 APK
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
