@@ -1,13 +1,14 @@
 package com.traffic.wifidirect.ui;
 
-import android.app.Activity;
 import android.os.Bundle;
-import android.widget.Toast;
+import androidx.appcompat.app.AppCompatActivity;
+import com.traffic.wifidirect.R;
 
-public class QRScanActivity extends Activity {
+public class QRScanActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Toast.makeText(this, "二维码扫码页面(开发中)", Toast.LENGTH_SHORT).show();
+        setContentView(R.layout.activity_qrscan);
+        // TODO: 扫描二维码逻辑
     }
 }
