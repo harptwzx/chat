@@ -33,13 +33,13 @@ jobs:
           if [ ! -f "gradlew" ]; then
             # 使用 action 安装的 gradle 命令
             ~/.gradle/wrapper/dists/gradle-8.10.2-*/gradle-8.10.2/bin/gradle wrapper --gradle-version 8.10.2
-            chmod +x gradlew
+            gradle wrapper
           fi
 
       - name: Build with Gradle
         run: |
           cd Traffic
-          ./gradlew assembleDebug
+          gradle assembleDebug
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
