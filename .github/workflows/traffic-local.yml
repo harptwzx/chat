@@ -1,11 +1,7 @@
-name: Build Traffic APK
+name: Build Traffic APK (Final)
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'Traffic/**'
-      - '.github/workflows/traffic-local.yml'
 
 jobs:
   build:
@@ -21,6 +17,48 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      # 1. 删除 AndroidManifest.xml 中的 package 属性
+      - name: Remove package from manifest
+        run: |
+          cd Traffic
+          sed -i 's/package="com.traffic.wifidirect" //' app/src/main/AndroidManifest.xml
+          sed -i 's/ package="com.traffic.wifidirect"//' app/src/main/AndroidManifest.xml
+          echo "✅ Removed package from manifest"
+
+      # 2. 创建 file_paths.xml
+      - name: Create file_paths.xml
+        run: |
+          cd Traffic/app/src/main/res
+          mkdir -p xml
+          cat > xml/file_paths.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <paths xmlns:android="http://schemas.android.com/apk/res/android">
+              <files-path name="files" path="." />
+              <cache-path name="cache" path="." />
+              <external-path name="external" path="." />
+              <external-files-path name="external_files" path="." />
+              <external-cache-path name="external_cache" path="." />
+          </paths>
+          EOF
+          echo "✅ file_paths.xml created"
+
+      # 3. 添加正确的 R import（在 package 之后）
+      - name: Add R imports correctly
+        run: |
+          cd Traffic/app/src/main/java/com/traffic/wifidirect/ui
+          for file in ReceiveActivity.java PreviewActivity.java SendActivity.java; do
+            if [ -f "$file" ]; then
+              # 删除错误的 import（如果有）
+              sed -i '/import com.traffic.wifidirect.R;/d' "$file"
+              # 在 package 后面添加正确的 import
+              sed -i '/^package com.traffic.wifidirect.ui;/a import com.traffic.wifidirect.R;' "$file"
+              echo "Fixed $file"
+              # 显示前几行验证
+              head -5 "$file"
+            fi
+          done
+
+      # 4. 构建
       - name: Build with Gradle
         uses: gradle/gradle-build-action@v3
         with:
@@ -28,7 +66,7 @@ jobs:
           gradle-version: 8.10.2
           arguments: assembleDebug
 
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: traffic-app-debug
