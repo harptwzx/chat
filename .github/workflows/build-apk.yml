@@ -30,17 +30,33 @@ jobs:
           version: 4.7.0-stable
           use-dotnet: false
           include-templates: true
-      - name: 预加热并安装 Android 构建模板
+      - name: 下载并安装 Android 构建模板
         run: |
-          timeout 180 godot --headless --editor --quit || true
-          # 手动创建 android 构建模板目录
           mkdir -p android/build
-          # 从 Godot 安装目录复制 Android 源码模板
-          GODOT_LIB=$(godot --headless --script -e "print(OS.get_executable_path())" 2>/dev/null || echo "")
-          # 或者直接从 GitHub 下载对应版本的源码模板
-          wget -q https://github.com/godotengine/godot/releases/download/4.7.0-stable/godot-4.7.0-stable.tar.xz -O /tmp/godot-src.tar.xz
-          tar -xf /tmp/godot-src.tar.xz -C /tmp/
-          cp -r /tmp/godot-4.7.0-stable/platform/android/java/* android/build/ 2>/dev/null || true
+          # 下载 Godot 4.7.0 的 Android 源码模板
+          wget -q "https://github.com/godotengine/godot/releases/download/4.7.0-stable/godot-4.7.0-stable.tar.xz" -O /tmp/godot.tar.xz
+          tar -tf /tmp/godot.tar.xz | head -20
+          # 解压并找到 android 目录
+          tar -xf /tmp/godot.tar.xz -C /tmp/
+          # 查找 android/java 目录
+          find /tmp -name "java" -type d | grep android || true
+          find /tmp -path "*/android/java" -type d || true
+          # 复制到项目
+          ANDROID_SRC=$(find /tmp -path "*/platform/android/java" -type d | head -1)
+          if [ -n "$ANDROID_SRC" ]; then
+            cp -r "$ANDROID_SRC"/* android/build/
+            echo "Android build template installed"
+          else
+            echo "Android build template not found in source"
+            # 备用方案：尝试从 Godot 编辑器安装
+            echo "Trying to install via Godot editor..."
+            # 创建一个空的 project 让 Godot 能运行
+            timeout 30 godot --headless --editor --quit || true
+          fi
+          ls -la android/build/ || true
+      - name: 预加热（导入资源）
+        run: |
+          timeout 120 godot --headless --editor --quit || true
       - name: 导出 APK（Debug 测试版）
         run: |
           mkdir -p build
