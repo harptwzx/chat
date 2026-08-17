@@ -1,0 +1,14 @@
+# Godot 4
+.godot/
+android/
+
+# 构建产物
+build/
+*.apk
+*.aab
+*.keystore
+*.tpz
+
+# 系统/编辑器
+*.tmp
+.DS_Store

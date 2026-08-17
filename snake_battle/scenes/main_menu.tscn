@@ -1,0 +1,94 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/main_menu.gd" id="1_menu"]
+
+[node name="MainMenu" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_menu")
+
+[node name="Background" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.07, 0.09, 0.12, 1)
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PanelContainer" type="PanelContainer" parent="CenterContainer"]
+custom_minimum_size = Vector2(420, 0)
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/PanelContainer"]
+custom_minimum_size = Vector2(420, 0)
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/PanelContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 0)
+text = "贪吃蛇大作战"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 36
+
+[node name="SubtitleLabel" type="Label" parent="CenterContainer/PanelContainer/VBoxContainer"]
+text = "局域网联机 · slither.io 风格"
+horizontal_alignment = 1
+
+[node name="NameEdit" type="LineEdit" parent="CenterContainer/PanelContainer/VBoxContainer"]
+placeholder_text = "输入昵称"
+size_flags_horizontal = 3
+max_length = 12
+
+[node name="PortEdit" type="LineEdit" parent="CenterContainer/PanelContainer/VBoxContainer"]
+text = "8910"
+placeholder_text = "端口（默认 8910）"
+size_flags_horizontal = 3
+max_length = 5
+
+[node name="SizeOption" type="OptionButton" parent="CenterContainer/PanelContainer/VBoxContainer"]
+item_count = 3
+selected = 1
+popup/item_0/text = "小（1200×1200）"
+popup/item_1/text = "中（2000×2000）"
+popup/item_2/text = "大（3000×3000）"
+size_flags_horizontal = 3
+
+[node name="OpacityLabel" type="Label" parent="CenterContainer/PanelContainer/VBoxContainer"]
+text = "UI 透明度: 60%"
+horizontal_alignment = 1
+
+[node name="OpacitySlider" type="HSlider" parent="CenterContainer/PanelContainer/VBoxContainer"]
+min_value = 0.1
+max_value = 1.0
+step = 0.05
+value = 0.6
+size_flags_horizontal = 3
+
+[node name="HostButton" type="Button" parent="CenterContainer/PanelContainer/VBoxContainer"]
+text = "创建房间（作为主机）"
+
+[node name="InfoLabel" type="Label" parent="CenterContainer/PanelContainer/VBoxContainer"]
+text = "创建后会在下方显示你的局域网IP"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="HSeparator" type="HSeparator" parent="CenterContainer/PanelContainer/VBoxContainer"]
+
+[node name="IpEdit" type="LineEdit" parent="CenterContainer/PanelContainer/VBoxContainer"]
+placeholder_text = "输入主机IP，如 192.168.1.100"
+size_flags_horizontal = 3
+
+[node name="JoinButton" type="Button" parent="CenterContainer/PanelContainer/VBoxContainer"]
+text = "加入房间"
+
+[node name="StatusLabel" type="Label" parent="CenterContainer/PanelContainer/VBoxContainer"]
+text = "等待操作..."
+horizontal_alignment = 1
+autowrap_mode = 2
