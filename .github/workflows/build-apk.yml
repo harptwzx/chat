@@ -30,9 +30,17 @@ jobs:
           version: 4.7.0-stable
           use-dotnet: false
           include-templates: true
-      - name: 预加热（导入资源）
+      - name: 预加热并安装 Android 构建模板
         run: |
-          timeout 120 godot --headless --editor --quit || true
+          timeout 180 godot --headless --editor --quit || true
+          # 手动创建 android 构建模板目录
+          mkdir -p android/build
+          # 从 Godot 安装目录复制 Android 源码模板
+          GODOT_LIB=$(godot --headless --script -e "print(OS.get_executable_path())" 2>/dev/null || echo "")
+          # 或者直接从 GitHub 下载对应版本的源码模板
+          wget -q https://github.com/godotengine/godot/releases/download/4.7.0-stable/godot-4.7.0-stable.tar.xz -O /tmp/godot-src.tar.xz
+          tar -xf /tmp/godot-src.tar.xz -C /tmp/
+          cp -r /tmp/godot-4.7.0-stable/platform/android/java/* android/build/ 2>/dev/null || true
       - name: 导出 APK（Debug 测试版）
         run: |
           mkdir -p build
