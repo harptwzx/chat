@@ -1,26 +1,21 @@
 name: 构建 Android APK
-
 on:
   workflow_dispatch:
   push:
     branches: [main, master]
-
 jobs:
   build-apk:
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
-
       - name: 安装 JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - name: 安装 Android SDK
         uses: android-actions/setup-android@v3
-
       - name: 补齐 SDK 平台与构建工具
         run: |
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
@@ -32,22 +27,18 @@ jobs:
             "build-tools;34.0.0" \
             "build-tools;35.0.0" \
             "build-tools;36.0.0"
-
       - name: 安装 Godot 4.7 与导出模板
         uses: chickensoft-games/setup-godot@v2
         with:
-          version: 4.7-stable
+          version: 4.7.0-stable
           use-dotnet: false
           include-templates: true
-
       - name: 安装 Android 构建模板（Gradle 工程）
         run: |
           godot --headless --install-android-build-template --verbose
-
       - name: 预加热（生成 .godot 缓存）
         run: |
           godot --headless --editor --quit || true
-
       - name: 生成签名密钥
         run: |
           keytool -genkeypair -v \
@@ -56,7 +47,6 @@ jobs:
             -keyalg RSA -keysize 2048 -validity 10000 \
             -storepass android -keypass android \
             -dname "CN=SnakeBattle,OU=Game,O=SnakeBattle,L=City,ST=State,C=CN"
-
       - name: 导出 APK（Gradle 编译）
         env:
           GODOT_ANDROID_KEYSTORE_RELEASE_PATH: ${{ github.workspace }}/release.keystore
@@ -65,7 +55,6 @@ jobs:
         run: |
           mkdir -p build
           godot --headless --export-release "Android" build/snake_battle.apk
-
       - name: 上传 APK
         uses: actions/upload-artifact@v4
         with:
