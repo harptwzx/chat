@@ -33,27 +33,22 @@ jobs:
       - name: 下载并安装 Android 构建模板
         run: |
           mkdir -p android/build
-          # 下载 Godot 4.7.0 的 Android 源码模板
-          wget -q "https://github.com/godotengine/godot/releases/download/4.7.0-stable/godot-4.7.0-stable.tar.xz" -O /tmp/godot.tar.xz
-          tar -tf /tmp/godot.tar.xz | head -20
-          # 解压并找到 android 目录
-          tar -xf /tmp/godot.tar.xz -C /tmp/
-          # 查找 android/java 目录
-          find /tmp -name "java" -type d | grep android || true
-          find /tmp -path "*/android/java" -type d || true
-          # 复制到项目
+          # 从 Godot 源码仓库下载 Android 构建模板（对应 4.7.0 版本）
+          wget -q "https://github.com/godotengine/godot/archive/refs/tags/4.7.0-stable.tar.gz" -O /tmp/godot-src.tar.gz
+          tar -tzf /tmp/godot-src.tar.gz | head -5
+          tar -xzf /tmp/godot-src.tar.gz -C /tmp/
+          # 找到 android/java 目录
           ANDROID_SRC=$(find /tmp -path "*/platform/android/java" -type d | head -1)
-          if [ -n "$ANDROID_SRC" ]; then
+          echo "Found Android source at: $ANDROID_SRC"
+          if [ -n "$ANDROID_SRC" ] && [ -d "$ANDROID_SRC" ]; then
             cp -r "$ANDROID_SRC"/* android/build/
-            echo "Android build template installed"
+            echo "Android build template installed successfully"
+            ls -la android/build/
           else
-            echo "Android build template not found in source"
-            # 备用方案：尝试从 Godot 编辑器安装
-            echo "Trying to install via Godot editor..."
-            # 创建一个空的 project 让 Godot 能运行
-            timeout 30 godot --headless --editor --quit || true
+            echo "ERROR: Android build template not found"
+            find /tmp -type d -name "java" | head -10
+            exit 1
           fi
-          ls -la android/build/ || true
       - name: 预加热（导入资源）
         run: |
           timeout 120 godot --headless --editor --quit || true
